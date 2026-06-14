@@ -1,0 +1,783 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Studio0808 VoxCPM 語音合成工作站 - 使用說明書</title>
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Noto+Sans+TC:wght@300;400;500;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg-color: #0d0f12;
+            --sidebar-color: #15181f;
+            --card-color: #1e222b;
+            --border-color: #2e3545;
+            --text-main: #f0f2f5;
+            --text-muted: #9ba3b4;
+            --primary: #9c27b0;
+            --primary-hover: #7b1fa2;
+            --accent-blue: #2196f3;
+            --accent-green: #4caf50;
+            --accent-orange: #ff9800;
+            --accent-pink: #e91e63;
+            --font-family: 'Inter', 'Noto Sans TC', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            background-color: var(--bg-color);
+            color: var(--text-main);
+            font-family: var(--font-family);
+            line-height: 1.6;
+            display: flex;
+            min-height: 100vh;
+            overflow-x: hidden;
+        }
+
+        /* Sidebar Styling */
+        .sidebar {
+            width: 280px;
+            background-color: var(--sidebar-color);
+            border-right: 1px solid var(--border-color);
+            padding: 30px 20px;
+            position: fixed;
+            top: 0;
+            bottom: 0;
+            left: 0;
+            display: flex;
+            flex-direction: column;
+            overflow-y: auto;
+            z-index: 100;
+        }
+
+        .logo-area {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            margin-bottom: 35px;
+            padding-bottom: 15px;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .logo-icon {
+            background: linear-gradient(135deg, var(--primary), var(--accent-pink));
+            width: 38px;
+            height: 38px;
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            color: white;
+            font-size: 20px;
+            box-shadow: 0 4px 12px rgba(156, 39, 176, 0.4);
+        }
+
+        .logo-text {
+            font-size: 18px;
+            font-weight: 700;
+            background: linear-gradient(135deg, #fff, #b0bec5);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .nav-menu {
+            list-style: none;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .nav-title {
+            font-size: 11px;
+            text-transform: uppercase;
+            letter-spacing: 1.5px;
+            color: var(--text-muted);
+            margin: 15px 0 5px 10px;
+            font-weight: 700;
+        }
+
+        .nav-item a {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 10px 15px;
+            color: var(--text-muted);
+            text-decoration: none;
+            font-size: 14px;
+            font-weight: 500;
+            border-radius: 6px;
+            transition: all 0.2s ease;
+        }
+
+        .nav-item a:hover {
+            color: var(--text-main);
+            background-color: rgba(255, 255, 255, 0.05);
+        }
+
+        .nav-item.active a {
+            color: white;
+            background: linear-gradient(135deg, var(--primary), rgba(156, 39, 176, 0.5));
+            box-shadow: 0 4px 10px rgba(156, 39, 176, 0.2);
+        }
+
+        /* Main Content Container */
+        .main-content {
+            margin-left: 280px;
+            padding: 40px 50px;
+            width: calc(100% - 280px);
+            max-width: 1200px;
+        }
+
+        /* Typography & Header styling */
+        header {
+            margin-bottom: 40px;
+        }
+
+        .version-badge {
+            background-color: rgba(33, 150, 243, 0.15);
+            color: var(--accent-blue);
+            border: 1px solid rgba(33, 150, 243, 0.3);
+            padding: 4px 10px;
+            border-radius: 30px;
+            font-size: 12px;
+            font-weight: 600;
+            display: inline-block;
+            margin-bottom: 15px;
+        }
+
+        h1 {
+            font-size: 36px;
+            font-weight: 700;
+            margin-bottom: 10px;
+            background: linear-gradient(135deg, #fff, #90a4ae);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .subtitle {
+            color: var(--text-muted);
+            font-size: 16px;
+        }
+
+        section {
+            margin-bottom: 60px;
+            scroll-margin-top: 40px;
+        }
+
+        h2 {
+            font-size: 24px;
+            font-weight: 700;
+            margin-bottom: 20px;
+            padding-bottom: 8px;
+            border-bottom: 1px solid var(--border-color);
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        h3 {
+            font-size: 18px;
+            font-weight: 600;
+            margin: 25px 0 15px 0;
+            color: var(--text-main);
+        }
+
+        p {
+            color: var(--text-muted);
+            margin-bottom: 20px;
+            font-size: 15px;
+            line-height: 1.7;
+        }
+
+        /* Feature Cards Layout */
+        .feature-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+            gap: 20px;
+            margin-top: 20px;
+        }
+
+        .feature-card {
+            background-color: var(--card-color);
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            padding: 25px;
+            transition: transform 0.3s ease, border-color 0.3s ease;
+        }
+
+        .feature-card:hover {
+            transform: translateY(-5px);
+            border-color: rgba(156, 39, 176, 0.5);
+        }
+
+        .card-icon {
+            width: 48px;
+            height: 48px;
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 24px;
+            margin-bottom: 20px;
+            color: white;
+        }
+
+        .icon-design { background-color: var(--primary); }
+        .icon-clone { background-color: var(--accent-green); }
+        .icon-ultimate { background-color: var(--accent-orange); }
+
+        .feature-card h3 {
+            margin-top: 0;
+            margin-bottom: 10px;
+        }
+
+        .feature-card ul {
+            list-style-type: none;
+            margin-top: 15px;
+            color: var(--text-muted);
+            font-size: 14px;
+        }
+
+        .feature-card li {
+            position: relative;
+            padding-left: 20px;
+            margin-bottom: 8px;
+        }
+
+        .feature-card li::before {
+            content: "•";
+            position: absolute;
+            left: 5px;
+            color: var(--primary);
+            font-weight: bold;
+        }
+
+        .icon-clone ~ ul li::before { color: var(--accent-green); }
+        .icon-ultimate ~ ul li::before { color: var(--accent-orange); }
+
+        /* Step Guide & Flow styling */
+        .step-list {
+            margin: 20px 0;
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+        }
+
+        .step-item {
+            display: flex;
+            gap: 20px;
+            background-color: var(--card-color);
+            border: 1px solid var(--border-color);
+            padding: 20px;
+            border-radius: 8px;
+        }
+
+        .step-number {
+            width: 32px;
+            height: 32px;
+            background-color: rgba(255, 255, 255, 0.08);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            color: var(--text-main);
+            flex-shrink: 0;
+        }
+
+        .step-text h4 {
+            font-size: 16px;
+            margin-bottom: 5px;
+        }
+
+        /* Callouts / Warnings */
+        .callout {
+            background-color: rgba(33, 150, 243, 0.08);
+            border-left: 4px solid var(--accent-blue);
+            padding: 18px;
+            border-radius: 0 8px 8px 0;
+            margin: 25px 0;
+        }
+
+        .callout-title {
+            font-weight: bold;
+            color: var(--text-main);
+            margin-bottom: 5px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .callout.warning {
+            background-color: rgba(233, 30, 99, 0.08);
+            border-left-color: var(--accent-pink);
+        }
+
+        .callout.tip {
+            background-color: rgba(76, 175, 80, 0.08);
+            border-left-color: var(--accent-green);
+        }
+
+        /* Parameter Table */
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 20px 0;
+            font-size: 14px;
+            background-color: var(--card-color);
+            border-radius: 8px;
+            overflow: hidden;
+            border: 1px solid var(--border-color);
+        }
+
+        th, td {
+            padding: 15px 20px;
+            text-align: left;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        th {
+            background-color: rgba(255, 255, 255, 0.03);
+            font-weight: 600;
+            color: var(--text-main);
+        }
+
+        tr:last-child td {
+            border-bottom: none;
+        }
+
+        .param-name {
+            font-weight: bold;
+            color: var(--text-main);
+            font-family: monospace;
+            font-size: 15px;
+        }
+
+        .badge {
+            padding: 3px 8px;
+            border-radius: 4px;
+            font-size: 12px;
+            font-weight: 500;
+        }
+
+        .badge-primary { background-color: rgba(156, 39, 176, 0.15); color: #d05ce3; }
+        .badge-blue { background-color: rgba(33, 150, 243, 0.15); color: #64b5f6; }
+
+        /* Code snippets */
+        code {
+            background-color: rgba(255, 255, 255, 0.08);
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-family: Consolas, Monaco, monospace;
+            font-size: 0.9em;
+            color: #ff8a80;
+        }
+
+        .code-block {
+            background-color: #08090c;
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            padding: 20px;
+            font-family: Consolas, Monaco, monospace;
+            font-size: 14px;
+            color: #b0bec5;
+            overflow-x: auto;
+            margin: 15px 0;
+            position: relative;
+        }
+
+        .code-block::after {
+            content: "範例範本";
+            position: absolute;
+            top: 8px;
+            right: 12px;
+            font-size: 11px;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        /* Collapsible accordion styling */
+        .accordion-item {
+            border: 1px solid var(--border-color);
+            background-color: var(--card-color);
+            border-radius: 8px;
+            margin-bottom: 12px;
+            overflow: hidden;
+        }
+
+        .accordion-header {
+            padding: 18px 20px;
+            font-weight: 600;
+            cursor: pointer;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            user-select: none;
+            transition: background-color 0.2s ease;
+        }
+
+        .accordion-header:hover {
+            background-color: rgba(255, 255, 255, 0.02);
+        }
+
+        .accordion-header::after {
+            content: "▼";
+            font-size: 12px;
+            color: var(--text-muted);
+            transition: transform 0.3s ease;
+        }
+
+        .accordion-item.active .accordion-header::after {
+            transform: rotate(180deg);
+        }
+
+        .accordion-content {
+            padding: 0 20px;
+            max-height: 0;
+            overflow: hidden;
+            transition: max-height 0.3s ease-out, padding 0.3s ease-out;
+            border-top: 0 solid var(--border-color);
+        }
+
+        .accordion-item.active .accordion-content {
+            padding: 15px 20px 20px 20px;
+            max-height: 400px;
+            border-top: 1px solid var(--border-color);
+        }
+
+        /* Responsive Design */
+        @media (max-width: 900px) {
+            body {
+                flex-direction: column;
+            }
+
+            .sidebar {
+                width: 100%;
+                position: relative;
+                height: auto;
+                border-right: none;
+                border-bottom: 1px solid var(--border-color);
+                padding: 20px;
+            }
+
+            .logo-area {
+                margin-bottom: 15px;
+            }
+
+            .nav-menu {
+                flex-direction: row;
+                flex-wrap: wrap;
+                gap: 10px;
+            }
+
+            .nav-title {
+                display: none;
+            }
+
+            .main-content {
+                margin-left: 0;
+                width: 100%;
+                padding: 30px 20px;
+            }
+        }
+    </style>
+</head>
+<body>
+
+    <!-- Sidebar Navigation -->
+    <div class="sidebar">
+        <div class="logo-area">
+            <div class="logo-icon">V</div>
+            <div class="logo-text">Studio0808 VoxCPM</div>
+        </div>
+        
+        <ul class="nav-menu">
+            <li class="nav-title">快速指引</li>
+            <li class="nav-item active"><a href="#quick-start">🚀 快速入門</a></li>
+            <li class="nav-title">核心功能</li>
+            <li class="nav-item"><a href="#voice-design">✨ 語音設計</a></li>
+            <li class="nav-item"><a href="#voice-clone">👥 聲音複製</a></li>
+            <li class="nav-item"><a href="#ultimate-clone">👑 極限複製</a></li>
+            <li class="nav-title">參數詳解</li>
+            <li class="nav-item"><a href="#parameters">⚙️ 進階參數</a></li>
+            <li class="nav-title">實用指南</li>
+            <li class="nav-item"><a href="#use-cases">💡 應用場景與限制</a></li>
+            <li class="nav-item"><a href="#faq">❓ 常見問題</a></li>
+        </ul>
+    </div>
+
+    <!-- Main Content Area -->
+    <div class="main-content">
+        <header>
+            <div class="version-badge">版本 V20260614</div>
+            <h1>Studio0808 語音合成工作站</h1>
+            <div class="subtitle">基於 OpenBMB VoxCPM2 最新開源語音合成模型，提供極致流暢、媲美真人的聲音複製與配音體驗。</div>
+        </header>
+
+        <!-- 🚀 Quick Start -->
+        <section id="quick-start">
+            <h2>🚀 快速入門</h2>
+            <p>本工具是一個全離線的 AI 語音合成工作站。首次使用時，需要先下載模型權重檔案。我們已經在程式內置了極速的 ModelScope (大陸鏡像節點) 下載通道，您可以按照以下步驟快速上手：</p>
+            
+            <div class="step-list">
+                <div class="step-item">
+                    <div class="step-number">1</div>
+                    <div class="step-text">
+                        <h4>設定本機路徑與下載模型</h4>
+                        <p>切換至 <strong>「系統設定」</strong> 分頁，確認您的本機模型儲存路徑。點選 <strong>「開始下載 / 檢查模型」</strong> 啟動極速下載。本系統會逐一檢查檔案完整性，如中途關閉，下次點擊只會補下載缺少的檔案，絕不重複下載已完成的檔案。您也可以點選「停止下載」安全中止下載程序。</p>
+                    </div>
+                </div>
+                <div class="step-item">
+                    <div class="step-number">2</div>
+                    <div class="step-text">
+                        <h4>選擇合適的語音生成模式</h4>
+                        <p>本系統提供 <strong>語音設計（無需參考音）</strong>、<strong>聲音複製（需 3-10秒參考音）</strong> 以及 <strong>極限複製（需參考音及對應逐字稿）</strong> 三種模式，可視您的音源材料與需求進行切換。</p>
+                    </div>
+                </div>
+                <div class="step-item">
+                    <div class="step-number">3</div>
+                    <div class="step-text">
+                        <h4>開始推論與播放</h4>
+                        <p>輸入您要合成的文字，點選紅色的 <strong>「開始語音合成」</strong> 按鈕。首次運行需要 20-40 秒初始化模型（將模型讀入顯示卡記憶體），之後每次合成僅需數秒。生成完成後，點擊綠色的 <strong>「播放生成音訊」</strong> 即可立即試聽。</p>
+                    </div>
+                </div>
+            </div>
+
+            <div class="callout tip">
+                <div class="callout-title">💡 硬體加速建議</div>
+                如果您配備有 NVIDIA 顯示卡，請確認本程式底部日誌中顯示有 <code>系統偵測到 NVIDIA GPU: GeForce ...</code> 且已啟用 CUDA。這將提供高達數十倍的生成速度提升，達成秒級生成！
+            </div>
+        </section>
+
+        <!-- ✨ Voice Design -->
+        <section id="voice-design">
+            <h2>✨ 語音設計 (Voice Design)</h2>
+            <p><strong>適合場景</strong>：不需要模仿特定人的聲音，只需憑空創造出符合某種特徵描述的精美聲線（例如廣播劇、小說朗讀、虛擬主播旁白）。</p>
+            <p>語音設計模式非常特別，它<strong>不需要您提供任何參考音檔</strong>。您只需要在您的輸入文字最前面，加上一個括號，並用英文寫下您想要的聲音特徵描述（如性別、年齡、情緒、環境音）。模型會自動解析這些描述，並無中生有地創造出對應的聲線。</p>
+
+            <div class="code-block">
+(A gentle young female voice, smiling) 哈囉！這是使用語音設計無中生有出來的聲音。聽起來很自然吧？
+            </div>
+
+            <h3>批次合成模式 (有聲書利器)</h3>
+            <p>當您需要合成整篇小說或長篇文章時，單次輸入整篇文字會因為上下文限制導致聲音崩潰或重複。此時，您可以使用 <strong>「批次合成 (逐行)」</strong> 按鈕：</p>
+            <div class="step-list">
+                <div class="step-item">
+                    <div class="step-number">1</div>
+                    <div class="step-text">
+                        <p>在文字輸入框中將文章按段落或句子換行，<strong>每一行代表一句話</strong>。</p>
+                    </div>
+                </div>
+                <div class="step-item">
+                    <div class="step-number">2</div>
+                    <div class="step-text">
+                        <p>每一行開頭都可以單獨加入括號描述特徵（例如第一行用男聲，第二行用女聲），藉此實現「多角色對話旁白」。</p>
+                    </div>
+                </div>
+                <div class="step-item">
+                    <div class="step-number">3</div>
+                    <div class="step-text">
+                        <p>點擊黃色的 <strong>「批次合成 (逐行)」</strong> 按鈕，系統會依序在背景逐句合成為單獨的 WAV 音檔，並自動存放在您的輸出路徑中，絕不卡死介面。</p>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- 👥 Voice Clone -->
+        <section id="voice-clone">
+            <h2>👥 聲音複製 (Voice Clone)</h2>
+            <p><strong>適合場景</strong>：想要用您自己、家人或特定網紅的聲音來說出一段話，但您手中只有一段簡短的零散錄音。</p>
+            <p>在此模式下，您只需要提供一段 <strong>3 到 10 秒</strong> 的語音檔案（支援 <strong>WAV、MP3、FLAC、M4A</strong> 等多種音訊格式），並在文字框輸入想要合成的文字。VoxCPM2 會自動提取該音檔中的音色特徵、語調、呼吸聲甚至錄音環境，並以該音色來說出您指定的任何文字。</p>
+
+            <div class="callout">
+                <div class="callout-title">⚠️ 對於複製參考音訊的建議</div>
+                為了獲得最佳的複製效果，請確保您上傳的 3-10 秒參考音檔滿足以下條件：
+                <ul style="margin: 10px 0 0 20px;">
+                    <li><strong>無噪音</strong>：背景不能有音樂（BGM）、風聲、噪聲或多人雜音。</li>
+                    <li><strong>單一發音人</strong>：音檔中只能有一個人說話，且沒有過度回音。</li>
+                    <li><strong>語音清晰</strong>：說話口齒清晰、發音自然。長度以 5~7 秒最佳。</li>
+                </ul>
+            </div>
+        </section>
+
+        <!-- 👑 Ultimate Clone -->
+        <section id="ultimate-clone">
+            <h2>👑 極限複製 (Ultimate Clone)</h2>
+            <p><strong>適合場景</strong>：追求完美的語氣接續、最高相似度、最逼真的說話腔調，特別是用於配音角色扮演、重要影片旁白等。</p>
+            <p>極限複製是聲音複製的「終極版」。除了提供 3~10 秒的參考音檔外，您<strong>必須在下方手動輸入該參考音檔中說出的完整逐字稿文字</strong>。模型會將參考音檔與它的逐字稿作為「提示（Prompt）」，並在時間線上<strong>百分之百無縫延續</strong>下去說出您指定的新文字。這可以保留說話者原本斷句、呼吸、重音甚至情緒張力，達成最極致真實的聲音模仿。</p>
+        </section>
+
+        <!-- ⚙️ Parameters -->
+        <section id="parameters">
+            <h2>⚙️ 進階參數詳解</h2>
+            <p>在推論進階參數設定區塊，您可以微調以下參數來控制聲音的品質與特性：</p>
+
+            <table>
+                <thead>
+                    <tr>
+                        <th style="width: 25%;">參數名稱</th>
+                        <th style="width: 15%;">預設值</th>
+                        <th style="width: 20%;">建議範圍</th>
+                        <th style="width: 40%;">功能說明</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td class="param-name">引導係數 (CFG)</td>
+                        <td><span class="badge badge-primary">2.0</span></td>
+                        <td>2.0 ~ 3.0</td>
+                        <td>數值越小，生成的語音音質和自然度越好；數值越大，生成的聲音與您的文字特徵描述（如 English, gentle 等）貼合度越強。建議維持在 2.0-3.0 之間。</td>
+                    </tr>
+                    <tr>
+                        <td class="param-name">去噪步數 (Steps)</td>
+                        <td><span class="badge badge-primary">10</span></td>
+                        <td>10 ~ 15</td>
+                        <td>數值越大，聲音細節越豐富精細，但生成時間會線性增加。一般設定為 10-15 步即可兼顧品質與速度。高於 20 步可能導致生成時間過長。</td>
+                    </tr>
+                    <tr>
+                        <td class="param-name">語速設定 (Speed)</td>
+                        <td><span class="badge badge-primary">1.0x</span></td>
+                        <td>0.8x ~ 1.2x</td>
+                        <td>調整生成語音的說話語速（範圍支援 0.5x 低速至 2.0x 快速）。如果想要情感表現更自然，建議設定在 0.9x ~ 1.1x 之間。</td>
+                    </tr>
+                    <tr>
+                        <td class="param-name">文字標準化</td>
+                        <td><span class="badge badge-blue">關閉</span></td>
+                        <td>開啟 / 關閉</td>
+                        <td>開啟後，會自動將文字中的阿拉伯數字和特殊符號轉譯為對應的文字（例如：<code>100元</code> 會被讀為 <code>一百元</code>）。若輸入文字包含大量數字，強烈建議開啟。</td>
+                    </tr>
+                    <tr>
+                        <td class="param-name">參考音訊自動降噪</td>
+                        <td><span class="badge badge-blue">關閉</span></td>
+                        <td>開啟 / 關閉</td>
+                        <td>若您上傳的參考語音含有輕微底噪、沙沙聲，開啟此功能會使用內置降噪算法先對參考音做預處理，能顯著改善克隆出來的語音純淨度。</td>
+                    </tr>
+                </tbody>
+            </table>
+        </section>
+
+        <!-- 💡 Use Cases & Limits -->
+        <section id="use-cases">
+            <h2>💡 應用場景、文字上限與語音限制</h2>
+            
+            <h3>1. 文字長度與生成時間限制</h3>
+            <p>因為 VoxCPM2 是基於自迴歸（Autoregressive）架構的 AI 模型，其內部具有上下文窗口（Context Window）長度限制，因此在單次生成中，<strong>文字輸入與生成時間有其上限限制</strong>：</p>
+            <ul>
+                <li style="margin-left: 20px; margin-bottom: 8px;"><strong>單次文字長度建議</strong>：請將單次合成的文字控制在 <strong>100 至 150 字中文以內</strong>（約 15~20 秒的說話長度）。</li>
+                <li style="margin-left: 20px; margin-bottom: 8px;"><strong>文字過長會怎樣？</strong>：如果單次輸入過長（例如輸入好幾百字），到了後半段，語音可能會出現<strong>胡言亂語、聲音破裂、重複跳針、甚至直接無聲中斷</strong>的現象。這是自迴歸模型的物理限制。</li>
+                <li style="margin-left: 20px; margin-bottom: 12px;"><strong>解決長篇生成的方案</strong>：請善用 <strong>「批次合成 (逐行)」</strong> 功能，將長文章或小說依標點符號分行輸入。系統會分段生成多個極為穩定的 WAV 檔，不僅能防跳針，還能透過多個小檔案進行後期音效與配樂整合！</li>
+            </ul>
+
+            <h3>2. 應用場景最佳實踐</h3>
+            <div class="feature-grid">
+                <div class="feature-card">
+                    <div class="card-icon icon-design">🎙️</div>
+                    <h3>自媒體與配音</h3>
+                    <p>利用「語音設計」隨機創造優質好聽的男女聲，為解說影片、宣傳片提供旁白配音。比起千篇一律的傳統 TTS，VoxCPM2 具有媲美真人的感情起伏。</p>
+                </div>
+                <div class="feature-card">
+                    <div class="card-icon icon-clone">📖</div>
+                    <h3>有聲書與 PodCast 製作</h3>
+                    <p>只需提供發音人（甚至您自己）的 6 秒語音範本，再將小說逐句貼入，即可在背景跑出整本用該音色朗讀的有聲書。低成本、高效率。</p>
+                </div>
+                <div class="feature-card">
+                    <div class="card-icon icon-ultimate">🎮</div>
+                    <h3>遊戲與虛擬角色配音</h3>
+                    <p>在「極限複製」模式下，配合情感充沛的提示音（例如憤怒、哭泣的音檔），接續生成角色台詞，能生成高度符合戲劇張力的聲音情感。</p>
+                </div>
+            </div>
+        </section>
+
+        <!-- ❓ FAQ -->
+        <section id="faq">
+            <h2>❓ 常見問題 (FAQ)</h2>
+            
+            <div class="accordion-item">
+                <div class="accordion-header">Q1：為什麼按下「開始下載模型」後，有時候會提示本機已存在並跳過？</div>
+                <div class="accordion-content">
+                    <p>這是 V20260614 版本全新加入的「防重複下載與逐檔檢查機制」。系統會比對您儲存路徑下的每一個檔案（例如 4.27GB 的主模型、359MB 的 VAE 權重等）。只有缺失或受損的檔案才會被列出並下載，其餘已經下載完成的檔案會直接跳過，確保不會浪費您的時間與網路流量。</p>
+                </div>
+            </div>
+
+            <div class="accordion-item">
+                <div class="accordion-header">Q2：為什麼聲音複製出來不像，或者有很重的金屬電音？</div>
+                <div class="accordion-content">
+                    <p>這通常是由參考音檔（Reference Audio）品質不佳引起的。如果您的參考音檔包含有背景音樂（BGM）、嚴重的空間回音（如在浴室錄音）、或者是背景有沙沙雜音，AI 會連同這些雜訊與音樂的音色特徵一起複製，導致生成的聲音不純淨。請嘗試開啟「參考音訊自動降噪」功能，或者使用更加乾淨的人聲重試。</p>
+                </div>
+            </div>
+
+            <div class="accordion-item">
+                <div class="accordion-header">Q3：可以用我的聲音唱一首歌嗎？</div>
+                <div class="accordion-content">
+                    <p><strong>不行的</strong>。VoxCPM2 是一個語音合成（TTS）與說話聲音克隆模型，它無法調整音高與音樂節奏來唱出一首歌。如果您想玩 AI 歌手，需要使用專門的歌聲轉換技術（如 RVC - Retrieval-based Voice Conversion）。</p>
+                </div>
+            </div>
+
+            <div class="accordion-item">
+                <div class="accordion-header">Q4：在 Windows 上下載模型時，如果網路中斷該怎麼辦？</div>
+                <div class="accordion-content">
+                    <p>別擔心！您可以直接點選程式中的「停止下載」，或者在網路異常斷開時，重啟下載即可。由於我們實作了斷點檢查，再次啟動時程式會自動偵測本機下載進度，未下載完的檔案會先清除後重新下載，已下載完成的檔案則完全不受影響，非常安全。</p>
+                </div>
+            </div>
+        </section>
+
+        <footer style="margin-top: 60px; padding-top: 20px; border-top: 1px solid var(--border-color); color: var(--text-muted); font-size: 13px; text-align: center;">
+            <p>Studio0808 語音合成工作站 © 2026. 版權所有.</p>
+        </footer>
+    </div>
+
+    <!-- Collapsible Accordion Script -->
+    <script>
+        document.querySelectorAll('.accordion-header').forEach(header => {
+            header.addEventListener('click', () => {
+                const item = header.parentElement;
+                const isActive = item.classList.contains('active');
+                
+                // Close all other items
+                document.querySelectorAll('.accordion-item').forEach(otherItem => {
+                    otherItem.classList.remove('active');
+                    otherItem.querySelector('.accordion-content').style.maxHeight = null;
+                });
+                
+                if (!isActive) {
+                    item.classList.add('active');
+                    const content = item.querySelector('.accordion-content');
+                    content.style.maxHeight = content.scrollHeight + "px";
+                }
+            });
+        });
+
+        // Add visual link highlighting on scroll
+        const sections = document.querySelectorAll('section');
+        const navItems = document.querySelectorAll('.nav-item');
+
+        window.addEventListener('scroll', () => {
+            let current = '';
+            sections.forEach(section => {
+                const sectionTop = section.offsetTop;
+                const sectionHeight = section.clientHeight;
+                if (pageYOffset >= (sectionTop - 150)) {
+                    current = section.getAttribute('id');
+                }
+            });
+
+            navItems.forEach(item => {
+                item.classList.remove('active');
+                const link = item.querySelector('a');
+                if (link && link.getAttribute('href').slice(1) === current) {
+                    item.classList.add('active');
+                }
+            });
+        });
+    </script>
+</body>
+</html>
