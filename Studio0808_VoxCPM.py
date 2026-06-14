@@ -260,6 +260,7 @@ class App(ctk.CTk):
                 self.logger.log("⚠️ 系統未偵測到 CUDA。將使用 CPU 模式（速度會慢上數十倍）。")
         except Exception as e:
             self.logger.log(f"偵測 GPU 時發生錯誤: {e}")
+        self.logger.log("📢 提示：第一次使用時，請記得先至「系統設定」下載並部署官方模型權重。")
 
     def create_gradient_text_image(self, text, font_size=24, start_color=(233, 30, 99), end_color=(255, 152, 0)):
         from PIL import Image, ImageDraw, ImageFont
@@ -337,6 +338,21 @@ class App(ctk.CTk):
             justify="left"
         )
         intro_label.pack(fill="x", padx=15, pady=(10, 5))
+        
+        # 首次使用提示卡片 (First-time user notice card)
+        first_time_notice = ctk.CTkFrame(home_scroll, fg_color="#1F222B", border_width=1, border_color="#2196F3")
+        first_time_notice.pack(fill="x", padx=15, pady=4, ipady=2)
+        
+        lbl_notice = ctk.CTkLabel(
+            first_time_notice,
+            text="💡 首次使用提示：本工具為全離線運行。若您是第一次開啟本程式，請務必先前往「系統設定」分頁下載並檢查 VoxCPM2 官方模型權重（共 7 個檔案，約 4.6GB），下載完成後即可開始使用語音合成與複製功能。",
+            font=self.font_bold,
+            text_color="#64B5F6",
+            justify="left",
+            anchor="w",
+            wraplength=800
+        )
+        lbl_notice.pack(fill="x", padx=15, pady=6)
         
         # Highlights Card
         highlight_card = ctk.CTkFrame(home_scroll, fg_color="#1F222B", border_width=1, border_color="#2D313E")
@@ -527,7 +543,15 @@ class App(ctk.CTk):
 
         # Download Panel
         ctk.CTkLabel(view_settings, text="VoxCPM2 官方模型下載與修補", font=self.font_header, anchor="w").pack(fill="x", pady=(0, 5))
-        ctk.CTkLabel(view_settings, text="如果您的電腦尚未下載 OpenBMB/VoxCPM2 模型權重，可直接在此處下載並部署於本機路徑。", font=self.font_ui, text_color="gray", anchor="w").pack(fill="x", pady=(0, 10))
+        
+        info_text = (
+            "本程式為全離線運作。首次使用請下載 OpenBMB/VoxCPM2 模型權重，下載完成後會自動部署於本機路徑。\n"
+            "⚠️ 本模型共包含下列 7 個必要檔案，總計約 4.63 GB，下載過程需要一些時間，請耐心等候：\n"
+            "   1. config.json (4.2 KB)           2. special_tokens_map.json (1.6 KB)    3. tokenization_voxcpm2.py (2.8 KB)\n"
+            "   4. tokenizer_config.json (4.9 KB)  5. tokenizer.json (3.5 MB)             6. audiovae.pth (359.5 MB)\n"
+            "   7. model.safetensors (4.27 GB)"
+        )
+        ctk.CTkLabel(view_settings, text=info_text, font=self.font_ui, text_color="gray", justify="left", anchor="w").pack(fill="x", pady=(0, 10))
 
         row_dl = ctk.CTkFrame(view_settings, fg_color="transparent")
         row_dl.pack(fill="x", pady=5)
