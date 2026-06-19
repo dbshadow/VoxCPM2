@@ -1,5 +1,6 @@
 import os
 import sys
+import random
 
 # Force UTF-8 encoding for stdout/stderr in Windows to prevent cp950 codec encode crashes with emojis
 if sys.platform.startswith('win'):
@@ -11,6 +12,19 @@ if sys.platform.startswith('win'):
 
 # Set HF_ENDPOINT to hf-mirror for extremely fast downloads in Asia
 os.environ["HF_ENDPOINT"] = "https://hf-mirror.com"
+
+# Monkey-patch torch.jit.script in packaged EXE to bypass "TorchScript requires source access" errors
+if getattr(sys, 'frozen', False):
+    try:
+        import torch
+        def dummy_script_method(fn, _rcb=None):
+            return fn
+        def dummy_script(obj, optimize=True, _frames_up=0, _rcb=None):
+            return obj
+        torch.jit.script_method = dummy_script_method
+        torch.jit.script = dummy_script
+    except Exception:
+        pass
 
 import tkinter as tk
 from tkinter import filedialog, messagebox
@@ -91,14 +105,14 @@ class App(ctk.CTk):
         self.script_dir = os.path.dirname(os.path.abspath(__file__))
 
         # Configure window
-        self.title("Studio0808 語音合成工作站 (V20260614)")
+        self.title("Studio0808 語音合成工作站 (V20260619)")
         self.geometry("1100x750")
         self.minsize(950, 680)
         
         # Set Application Icon & Taskbar ID on Windows
         try:
             import ctypes
-            myappid = 'studio0808.voxcpm.app.v20260614'
+            myappid = 'studio0808.voxcpm.app.v20260619'
             ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID(myappid)
         except Exception:
             pass
@@ -136,7 +150,7 @@ class App(ctk.CTk):
         # Variables
         self.model_dir_var = ctk.StringVar(value=os.path.join(self.script_dir, "models", "VoxCPM2"))
         self.output_dir_var = ctk.StringVar(value=os.path.join(self.script_dir, "outputs"))
-        self.downloader_source_var = ctk.StringVar(value="ModelScope")
+        self.downloader_source_var = ctk.StringVar(value="Hugging Face 官方 (推薦)")
         self.download_cancelled_event = threading.Event()
         self.is_downloading = False
         
@@ -167,11 +181,35 @@ class App(ctk.CTk):
             "ultimate": ctk.BooleanVar(value=False)
         }
         
+        # Seed variables
+        self.chk_seed_vars = {
+            "design": ctk.BooleanVar(value=False),
+            "clone": ctk.BooleanVar(value=False),
+            "ultimate": ctk.BooleanVar(value=False)
+        }
+        self.seed_vars = {
+            "design": ctk.StringVar(value=""),
+            "clone": ctk.StringVar(value=""),
+            "ultimate": ctk.StringVar(value="")
+        }
+        
         # Last generated audio
         self.last_generated_audio = None
         
         # Play buttons per view (to fix enable/disable across tabs)
         self.play_buttons = {}
+        
+        # Recording state variables
+        self.is_recording = False
+        self.recorded_frames = []
+        self.recording_stream = None
+        self.record_prompt_text = "這是現場即時錄音，可以用在聲音複製功能，看看效果有多逼真！"
+        self.recorded_filepath = None
+        self.recorded_play_thread = None
+        self.recorded_play_stop_event = threading.Event()
+        self.is_playing_recorded = False
+        self.recording_device_var = ctk.StringVar()
+        self.vis_buffer = np.zeros(4000)
         
         # Create UI Layout
         self.grid_columnconfigure(1, weight=1)
@@ -180,7 +218,7 @@ class App(ctk.CTk):
         # 1. Sidebar Frame
         self.sidebar_frame = ctk.CTkFrame(self, width=200, corner_radius=0, fg_color="#181A1F")
         self.sidebar_frame.grid(row=0, column=0, sticky="nsew")
-        self.sidebar_frame.grid_rowconfigure(6, weight=1) # Spacer
+        self.sidebar_frame.grid_rowconfigure(7, weight=1) # Spacer
 
         # Navigation Buttons
         self.nav_buttons = []
@@ -188,6 +226,7 @@ class App(ctk.CTk):
         icons_dir = os.path.join(self.script_dir, "assets", "icons")
         nav_items = [
             ("home", " 首頁", "#1E88E5", "home.png"),
+            ("record", " 即時錄音", "#E91E63", "realtime_vc.png"),
             ("design", " 語音設計", "#9C27B0", "tts.png"),
             ("clone", " 聲音複製", "#4CAF50", "clone.png"),
             ("ultimate", " 極限複製", "#FF9800", "audio.png"),
@@ -455,10 +494,80 @@ class App(ctk.CTk):
         ctk.CTkLabel(view_design, text="語音設計 (Voice Design)", font=self.font_title, anchor="w").pack(fill="x", pady=(0, 5))
         ctk.CTkLabel(view_design, text="無須上傳參考音訊。直接在文字開頭加上括號與音色特徵描述即可生成特定聲線。\n例如：(A gentle young female voice, smiling) 哈囉，歡迎來到語音合成工作站！\n💡 批次模式：每行一句，按「批次合成」可逐行依序全部生成。", font=self.font_ui, text_color="gray", anchor="w").pack(fill="x", pady=(0, 8))
         
-        ctk.CTkLabel(view_design, text="目標合成文字 (請包含描述，批次模式每行一句):", font=self.font_bold, anchor="w").pack(fill="x")
-        self.txt_design = ctk.CTkTextbox(view_design, height=140, font=self.font_ui, fg_color="#181A1F", border_width=1, border_color="#2A2D35")
+        # Container for text input and presets
+        design_input_container = ctk.CTkFrame(view_design, fg_color="transparent")
+        design_input_container.pack(fill="x", pady=4)
+        design_input_container.grid_columnconfigure(0, weight=1)
+        design_input_container.grid_columnconfigure(1, weight=0)
+        
+        left_side = ctk.CTkFrame(design_input_container, fg_color="transparent")
+        left_side.grid(row=0, column=0, sticky="nsew", padx=(0, 10))
+        
+        ctk.CTkLabel(left_side, text="目標合成文字 (請包含描述，批次模式每行一句):", font=self.font_bold, anchor="w").pack(fill="x")
+        self.txt_design = ctk.CTkTextbox(left_side, height=180, font=self.font_ui, fg_color="#181A1F", border_width=1, border_color="#2A2D35")
         self.txt_design.insert("0.0", "(A young woman, gentle and sweet voice) 哈囉！這是使用語音設計無中生有出來的聲音。")
-        self.txt_design.pack(fill="x", pady=4)
+        self.txt_design.pack(fill="both", expand=True, pady=(2, 0))
+        
+        right_side = ctk.CTkFrame(design_input_container, fg_color="#181A1F", border_width=1, border_color="#2A2D35", width=260)
+        right_side.grid(row=0, column=1, sticky="nsew")
+        right_side.grid_propagate(False)
+        
+        ctk.CTkLabel(right_side, text=" 語音特徵快速範本", font=self.font_bold, text_color="#9C27B0", anchor="w").pack(pady=(8, 2), padx=10, fill="x")
+        
+        self.preset_menus = {}
+        
+        self.preset_menus["tw_mandarin"] = ctk.CTkOptionMenu(
+            right_side,
+            values=["臺灣老爺爺", "臺灣老奶奶", "臺灣年輕男生", "臺灣年輕女生", "臺灣小男孩", "臺灣小女孩"],
+            command=lambda r: self._apply_voice_preset("tw_mandarin", r),
+            font=self.font_ui,
+            dropdown_font=self.font_ui,
+            fg_color="#2E3545",
+            button_color="#2196F3",
+            button_hover_color="#1976D2"
+        )
+        self.preset_menus["tw_mandarin"].set("臺灣國語 (選擇音色)")
+        self.preset_menus["tw_mandarin"].pack(pady=3, padx=15, fill="x")
+        
+        
+        self.preset_menus["japanese"] = ctk.CTkOptionMenu(
+            right_side,
+            values=["老爺爺", "老奶奶", "年輕男生", "年輕女生", "小男孩", "小女孩"],
+            command=lambda r: self._apply_voice_preset("japanese", r),
+            font=self.font_ui,
+            dropdown_font=self.font_ui,
+            fg_color="#2E3545",
+            button_color="#FF9800",
+            button_hover_color="#F57C00"
+        )
+        self.preset_menus["japanese"].set("日本語 (選擇音色)")
+        self.preset_menus["japanese"].pack(pady=3, padx=15, fill="x")
+        
+        self.preset_menus["us_english"] = ctk.CTkOptionMenu(
+            right_side,
+            values=["老爺爺", "老奶奶", "年輕男生", "年輕女生", "小男孩", "小女孩"],
+            command=lambda r: self._apply_voice_preset("us_english", r),
+            font=self.font_ui,
+            dropdown_font=self.font_ui,
+            fg_color="#2E3545",
+            button_color="#9C27B0",
+            button_hover_color="#7B1FA2"
+        )
+        self.preset_menus["us_english"].set("美國英語 (選擇音色)")
+        self.preset_menus["us_english"].pack(pady=3, padx=15, fill="x")
+        
+        self.preset_menus["korean"] = ctk.CTkOptionMenu(
+            right_side,
+            values=["老爺爺", "老奶奶", "年輕男生", "年輕女生", "小男孩", "小女孩"],
+            command=lambda r: self._apply_voice_preset("korean", r),
+            font=self.font_ui,
+            dropdown_font=self.font_ui,
+            fg_color="#2E3545",
+            button_color="#607D8B",
+            button_hover_color="#455A64"
+        )
+        self.preset_menus["korean"].set("韓語 (選擇音色)")
+        self.preset_menus["korean"].pack(pady=(3, 8), padx=15, fill="x")
         
         self.create_inference_params_ui(view_design, "design")
         self.create_action_buttons_ui(view_design, "design")
@@ -557,13 +666,160 @@ class App(ctk.CTk):
         row_dl.pack(fill="x", pady=5)
         
         ctk.CTkLabel(row_dl, text="下載伺服器來源:", font=self.font_ui).pack(side="left", padx=(0, 10))
-        ctk.CTkOptionMenu(row_dl, variable=self.downloader_source_var, values=["ModelScope (國內推薦，極速)", "Hugging Face"], font=self.font_ui, dropdown_font=self.font_ui, width=220).pack(side="left")
+        ctk.CTkOptionMenu(
+            row_dl, 
+            variable=self.downloader_source_var, 
+            values=[
+                "Hugging Face 官方 (推薦)", 
+                "Hugging Face 鏡像", 
+                "ModelScope"
+            ], 
+            font=self.font_ui, 
+            dropdown_font=self.font_ui, 
+            width=220
+        ).pack(side="left")
         
         self.btn_download = ctk.CTkButton(row_dl, text="開始下載 / 檢查模型", font=self.font_bold, fg_color="#9C27B0", hover_color="#7B1FA2", width=180, command=self.start_model_download)
         self.btn_download.pack(side="left", padx=15)
 
         self.lbl_dl_status = ctk.CTkLabel(view_settings, text="", font=self.font_ui, text_color="gray85", anchor="w", justify="left")
         self.lbl_dl_status.pack(fill="x", pady=(5, 0))
+
+        # 1.5. Record View
+        view_record = ctk.CTkFrame(self.content_frame, fg_color="transparent")
+        self.views["record"] = view_record
+        
+        ctk.CTkLabel(view_record, text="即時錄音測試 (Live Recording Test)", font=self.font_title, anchor="w").pack(fill="x", pady=(0, 5))
+        ctk.CTkLabel(view_record, text="在此錄製您的聲音以測試複製功能。系統將使用您的錄音作為「聲音複製」與「極限複製」的參考音訊。", font=self.font_ui, text_color="gray", anchor="w").pack(fill="x", pady=(0, 8))
+        
+        # Recording device selection frame
+        row_device = ctk.CTkFrame(view_record, fg_color="transparent")
+        row_device.pack(fill="x", pady=5)
+        ctk.CTkLabel(row_device, text="選擇錄音輸入設備 (麥克風):", font=self.font_bold, width=200, anchor="w").pack(side="left")
+        
+        self.menu_devices = ctk.CTkOptionMenu(
+            row_device,
+            variable=self.recording_device_var,
+            values=["預設輸入裝置"],
+            font=self.font_ui,
+            dropdown_font=self.font_ui,
+            width=300
+        )
+        self.menu_devices.pack(side="left", padx=5)
+        
+        btn_refresh_devices = ctk.CTkButton(
+            row_device,
+            text="🔄 重新整理",
+            font=self.font_bold,
+            width=100,
+            command=self.populate_recording_devices
+        )
+        btn_refresh_devices.pack(side="left", padx=5)
+        
+        # Prompt text card (Reading card)
+        prompt_card = ctk.CTkFrame(view_record, fg_color="#181A1F", border_width=1, border_color="#2A2D35")
+        prompt_card.pack(fill="x", pady=10, ipady=10)
+        
+        ctk.CTkLabel(prompt_card, text="請看著下方文本，並以正常音量與速度朗讀：", font=self.font_bold, text_color="#E91E63").pack(pady=(10, 5), padx=15, anchor="w")
+        
+        lbl_prompt_text = ctk.CTkLabel(
+            prompt_card,
+            text=f"「{self.record_prompt_text}」",
+            font=("Microsoft JhengHei UI", 16, "bold"),
+            text_color="#FFFFFF",
+            justify="center",
+            wraplength=800
+        )
+        lbl_prompt_text.pack(pady=15, padx=20, fill="x")
+        
+        # Note about audio length
+        ctk.CTkLabel(
+            prompt_card,
+            text="💡 提示：本文字長度約 5~7 秒，是最適合聲音複製的黃金長度（建議控制在 3~10 秒內）。",
+            font=self.font_ui,
+            text_color="gray"
+        ).pack(pady=(0, 10))
+        
+        # Recording status and control buttons
+        control_frame = ctk.CTkFrame(view_record, fg_color="transparent")
+        control_frame.pack(fill="x", pady=10)
+        
+        self.btn_record = ctk.CTkButton(
+            control_frame,
+            text="🔴 開始錄音",
+            font=self.font_bold,
+            height=45,
+            width=180,
+            fg_color="#F44336",
+            hover_color="#D32F2F",
+            command=self.toggle_recording
+        )
+        self.btn_record.pack(side="left", padx=(0, 10))
+        
+        # Real-time voice waveform canvas
+        self.wave_canvas = tk.Canvas(control_frame, width=250, height=45, bg="#111216", highlightthickness=1, highlightbackground="#2A2D35")
+        self.wave_canvas.pack(side="left", padx=10)
+        # Draw initial flat line
+        self.wave_canvas.create_line(0, 22, 250, 22, fill="#555555", tags="wave", width=1)
+        
+        self.lbl_record_status = ctk.CTkLabel(
+            control_frame,
+            text="就緒。請點選「開始錄音」以開始讀稿。",
+            font=self.font_bold,
+            text_color="gray85"
+        )
+        self.lbl_record_status.pack(side="left", padx=10)
+        
+        # Playback and Apply frame
+        self.recorded_actions_frame = ctk.CTkFrame(view_record, fg_color="#181A1F", border_width=1, border_color="#2A2D35")
+        self.recorded_actions_frame.pack(fill="x", pady=10, ipady=5)
+        
+        ctk.CTkLabel(self.recorded_actions_frame, text="錄音後續作業：", font=self.font_bold).pack(anchor="w", padx=15, pady=(8, 4))
+        
+        actions_row = ctk.CTkFrame(self.recorded_actions_frame, fg_color="transparent")
+        actions_row.pack(fill="x", padx=10, pady=5)
+        
+        self.btn_play_recorded = ctk.CTkButton(
+            actions_row,
+            text="▶ 播放錄音",
+            font=self.font_bold,
+            height=40,
+            width=150,
+            fg_color="#4CAF50",
+            hover_color="#388E3C",
+            state="disabled",
+            command=self.toggle_recorded_playback
+        )
+        self.btn_play_recorded.pack(side="left", padx=5)
+        
+        self.btn_apply_clone = ctk.CTkButton(
+            actions_row,
+            text="👥 套用至 聲音複製",
+            font=self.font_bold,
+            height=40,
+            width=180,
+            fg_color="#2196F3",
+            hover_color="#1976D2",
+            state="disabled",
+            command=self.use_recorded_for_clone
+        )
+        self.btn_apply_clone.pack(side="left", padx=5)
+        
+        self.btn_apply_ultimate = ctk.CTkButton(
+            actions_row,
+            text="👑 套用至 極限複製",
+            font=self.font_bold,
+            height=40,
+            width=180,
+            fg_color="#FF9800",
+            hover_color="#F57C00",
+            state="disabled",
+            command=self.use_recorded_for_ultimate
+        )
+        self.btn_apply_ultimate.pack(side="left", padx=5)
+        
+        # Initialize recording device list
+        self.populate_recording_devices()
 
     def create_inference_params_ui(self, parent_frame, func_type):
         # A tidy parameters subframe
@@ -648,6 +904,39 @@ class App(ctk.CTk):
         # 2. Denoise Reference (Row 1)
         chk_denoise = ctk.CTkCheckBox(right_col, text="參考音訊自動降噪", font=self.font_bold, variable=self.chk_denoise_vars[func_type], checkbox_width=16, checkbox_height=16)
         chk_denoise.grid(row=1, column=0, padx=(15, 0), pady=6, sticky="w")
+        
+        # 3. Fixed Seed Frame (Row 2)
+        seed_frame = ctk.CTkFrame(right_col, fg_color="transparent")
+        seed_frame.grid(row=2, column=0, padx=(15, 0), pady=(6, 12), sticky="w")
+        
+        chk_seed = ctk.CTkCheckBox(
+            seed_frame, 
+            text="使用固定隨機種子 (固定音色)", 
+            font=self.font_bold, 
+            variable=self.chk_seed_vars[func_type], 
+            checkbox_width=16, 
+            checkbox_height=16,
+            command=lambda f=func_type: self._toggle_seed_entry(f)
+        )
+        chk_seed.pack(side="left")
+        
+        if not hasattr(self, "entry_seeds"):
+            self.entry_seeds = {}
+            
+        entry_seed = ctk.CTkEntry(
+            seed_frame, 
+            textvariable=self.seed_vars[func_type], 
+            font=self.font_mono, 
+            width=90, 
+            height=24,
+            fg_color="#181A1F"
+        )
+        entry_seed.pack(side="left", padx=(8, 0))
+        self.entry_seeds[func_type] = entry_seed
+        
+        # Disable/Enable seed input based on checkbox initial value
+        if not self.chk_seed_vars[func_type].get():
+            entry_seed.configure(state="disabled")
 
     def create_action_buttons_ui(self, parent_frame, func_type):
         action_row = ctk.CTkFrame(parent_frame, fg_color="transparent")
@@ -806,6 +1095,16 @@ class App(ctk.CTk):
                 "denoise": self.chk_denoise_vars["ultimate"].get()
             }
         
+        # Check seed setting
+        if self.chk_seed_vars[func_type].get():
+            try:
+                seed_val = int(self.seed_vars[func_type].get().strip())
+                args["seed"] = seed_val
+            except ValueError:
+                messagebox.showerror("錯誤", "隨機種子必須是整數！")
+                self._stop_progress_bar()
+                return
+                
         speed_rate = self.speed_rate_vars[func_type].get()
 
         # Start thread
@@ -839,9 +1138,20 @@ class App(ctk.CTk):
         speed_rate = self.speed_rate_vars["design"].get()
         norm = self.chk_norm_vars["design"].get()
         denoise_audio = self.chk_denoise_vars["design"].get()
-        threading.Thread(target=self._batch_infer_thread_run, args=(model_dir, lines, cfg, steps, speed_rate, norm, denoise_audio), daemon=True).start()
+        
+        # Check seed setting
+        seed_val = None
+        if self.chk_seed_vars["design"].get():
+            try:
+                seed_val = int(self.seed_vars["design"].get().strip())
+            except ValueError:
+                messagebox.showwarning("警告", "隨機種子必須是整數！")
+                self._stop_progress_bar()
+                return
+                
+        threading.Thread(target=self._batch_infer_thread_run, args=(model_dir, lines, cfg, steps, speed_rate, norm, denoise_audio, seed_val), daemon=True).start()
 
-    def _batch_infer_thread_run(self, model_dir, lines, cfg, steps, speed_rate, norm, denoise_audio):
+    def _batch_infer_thread_run(self, model_dir, lines, cfg, steps, speed_rate, norm, denoise_audio, seed_val):
         global VOXCPM_MODEL
         total = len(lines)
         success_count = 0
@@ -854,13 +1164,22 @@ class App(ctk.CTk):
             if VOXCPM_MODEL is None:
                 self.logger.log("🔄 正在初次初始化並載入 VoxCPM2 模型... (模型大小為 2B，第一次載入可能需要 20-40 秒)")
                 from voxcpm import VoxCPM
-                VOXCPM_MODEL = VoxCPM.from_pretrained(model_dir, load_denoiser=False)
+                VOXCPM_MODEL = VoxCPM.from_pretrained(model_dir, load_denoiser=False, optimize=not getattr(sys, 'frozen', False))
                 self.logger.log("✅ 模型成功加載至記憶體/顯示記憶體！")
             
             for i, line in enumerate(lines, 1):
                 self.logger.log(f"")
                 self.logger.log(f"━━━ 批次進度 [{i}/{total}] ━━━")
                 self.logger.log(f"📝 文字: {line[:80]}{'...' if len(line) > 80 else ''}")
+                
+                # Apply seed
+                if seed_val is not None:
+                    self.set_global_seed(seed_val)
+                    self.logger.log(f"🔒 使用固定種子 ID: {seed_val}")
+                else:
+                    line_seed = random.randint(0, 10000000)
+                    self.set_global_seed(line_seed)
+                    self.logger.log(f"🎲 使用隨機種子 ID: {line_seed} (可複製此 ID 並勾選「固定隨機種子」來固定音色)")
                 
                 try:
                     start_time = time.time()
@@ -910,7 +1229,8 @@ class App(ctk.CTk):
         except Exception as e:
             self.logger.log(f"❌ 批次合成發生嚴重錯誤: {e}")
             import traceback
-            traceback.print_exc()
+            tb_str = traceback.format_exc()
+            self.logger.log(f"詳細追蹤:\n{tb_str}")
         finally:
             self.after(0, self._stop_progress_bar)
 
@@ -921,12 +1241,22 @@ class App(ctk.CTk):
             if VOXCPM_MODEL is None:
                 self.logger.log("🔄 正在初次初始化並載入 VoxCPM2 模型... (模型大小為 2B，第一次載入可能需要 20-40 秒)")
                 from voxcpm import VoxCPM
-                VOXCPM_MODEL = VoxCPM.from_pretrained(model_dir, load_denoiser=False)
+                VOXCPM_MODEL = VoxCPM.from_pretrained(model_dir, load_denoiser=False, optimize=not getattr(sys, 'frozen', False))
                 self.logger.log("✅ 模型成功加載至記憶體/顯示記憶體！")
 
             self.logger.log("🚀 開始生成語音...")
             self.logger.log(f"參數設定: CFG Scale={args.get('cfg_value')}, 去噪步數={args.get('inference_timesteps')}, 語速={speed_rate}x, 標準化={args.get('normalize')}, 降噪={args.get('denoise')}")
             
+            # Apply seed
+            seed_val = args.pop("seed", None)
+            if seed_val is not None:
+                self.set_global_seed(seed_val)
+                self.logger.log(f"🔒 使用固定種子 ID: {seed_val}")
+            else:
+                random_seed = random.randint(0, 10000000)
+                self.set_global_seed(random_seed)
+                self.logger.log(f"🎲 使用隨機種子 ID: {random_seed} (可複製此 ID 並勾選「固定隨機種子」來固定音色)")
+
             start_time = time.time()
             # Generate wav using VoxCPM
             wav = VOXCPM_MODEL.generate(**args)
@@ -959,7 +1289,8 @@ class App(ctk.CTk):
         except Exception as e:
             self.logger.log(f"❌ 生成失敗，錯誤資訊: {e}")
             import traceback
-            traceback.print_exc()
+            tb_str = traceback.format_exc()
+            self.logger.log(f"詳細追蹤:\n{tb_str}")
         finally:
             self.after(0, self._stop_progress_bar)
 
@@ -971,12 +1302,113 @@ class App(ctk.CTk):
         except Exception:
             pass
 
+    def _toggle_seed_entry(self, func_type):
+        if self.chk_seed_vars[func_type].get():
+            self.entry_seeds[func_type].configure(state="normal")
+        else:
+            self.entry_seeds[func_type].configure(state="disabled")
+
+    def _apply_voice_preset(self, lang, role):
+        presets = {
+            "tw_mandarin": {
+                "臺灣老爺爺": "An elderly man, Taiwanese Mandarin accent, warm and gentle voice",
+                "臺灣老奶奶": "An elderly woman, Taiwanese Mandarin accent, kind and soft voice",
+                "臺灣年輕男生": "A young man, Taiwanese Mandarin accent, clear and energetic voice",
+                "臺灣年輕女生": "A young woman, Taiwanese Mandarin accent, gentle and sweet voice",
+                "臺灣小男孩": "A young boy, Taiwanese Mandarin accent, cute voice",
+                "臺灣小女孩": "A young girl, Taiwanese Mandarin accent, lovely and sweet voice"
+            },
+            "japanese": {
+                "老爺爺": "An old man, Japanese accent, warm and gentle voice",
+                "老奶奶": "An old woman, Japanese accent, kind and soft voice",
+                "年輕男生": "A young man, Japanese accent, clear and energetic voice",
+                "年輕女生": "A young woman, Japanese accent, gentle and sweet voice",
+                "小男孩": "A young boy, Japanese accent, cute voice",
+                "小女孩": "A young girl, Japanese accent, lovely voice"
+            },
+            "us_english": {
+                "老爺爺": "An old man, American accent, deep and warm voice",
+                "老奶奶": "An old woman, American accent, kind and gentle voice",
+                "年輕男生": "A young man, American accent, clear and energetic voice",
+                "年輕女生": "A young woman, American accent, gentle and sweet voice",
+                "小男孩": "A young boy, American accent, cute voice",
+                "小女孩": "A young girl, American accent, lovely voice"
+            },
+            "korean": {
+                "老爺爺": "An old man, Korean accent, warm and gentle voice",
+                "老奶奶": "An old woman, Korean accent, kind and soft voice",
+                "年輕男生": "A young man, Korean accent, clear and energetic voice",
+                "年輕女生": "A young woman, Korean accent, gentle and sweet voice",
+                "小男孩": "A young boy, Korean accent, cute voice",
+                "小女孩": "A young girl, Korean accent, lovely voice"
+            }
+        }
+        
+        desc = presets.get(lang, {}).get(role, "")
+        if not desc:
+            return
+            
+        sentences = {
+            "tw_mandarin": "哈囉！這是使用語音設計無中生有出來的聲音。",
+            "japanese": "こんにちは！これは音声設計で新しく生成された声です。",
+            "us_english": "Hello! This is a voice generated from scratch using voice design.",
+            "korean": "안녕하세요! 이것은 음성 디자인으로 새로 생성된 목소리입니다."
+        }
+        
+        sentence = sentences.get(lang, "")
+        new_line = f"({desc}) {sentence}"
+        
+        current_content = self.txt_design.get("0.0", "end-1c")
+        
+        if not current_content.strip():
+            # If empty or only whitespace, set the content directly
+            self.txt_design.delete("0.0", "end")
+            self.txt_design.insert("0.0", new_line)
+        else:
+            # Append as a new line
+            if current_content.endswith("\n"):
+                self.txt_design.insert("end", new_line)
+            else:
+                self.txt_design.insert("end", "\n" + new_line)
+                
+        # Reset all option menus back to their default titles
+        default_titles = {
+            "tw_mandarin": "臺灣國語 (選擇音色)",
+            "japanese": "日本語 (選擇音色)",
+            "us_english": "美國英語 (選擇音色)",
+            "korean": "韓語 (選擇音色)"
+        }
+        
+        for k, menu in self.preset_menus.items():
+            menu.set(default_titles[k])
+
+    def set_global_seed(self, seed):
+        import random
+        import numpy as np
+        import torch
+        random.seed(seed)
+        np.random.seed(seed)
+        torch.manual_seed(seed)
+        if torch.cuda.is_available():
+            torch.cuda.manual_seed(seed)
+            torch.cuda.manual_seed_all(seed)
+            torch.backends.cudnn.deterministic = True
+            torch.backends.cudnn.benchmark = False
+
     # Playback functions
     def toggle_playback(self):
         global PLAYBACK_THREAD, PLAYBACK_STOP_EVENT, IS_PLAYING
         
         if not self.last_generated_audio or not os.path.exists(self.last_generated_audio):
             return
+
+        # Stop recorded playback if active
+        if hasattr(self, 'is_playing_recorded') and self.is_playing_recorded:
+            self.recorded_play_stop_event.set()
+            sd.stop()
+            self.btn_play_recorded.configure(text="▶ 播放錄音")
+            self.is_playing_recorded = False
+            time.sleep(0.1)
 
         if IS_PLAYING:
             # Stop playback
@@ -1001,6 +1433,231 @@ class App(ctk.CTk):
                 daemon=True
             )
             PLAYBACK_THREAD.start()
+
+    def toggle_recorded_playback(self):
+        if not self.recorded_filepath or not os.path.exists(self.recorded_filepath):
+            return
+            
+        # Stop any generated audio playback if it is running
+        global IS_PLAYING, PLAYBACK_STOP_EVENT
+        if IS_PLAYING:
+            PLAYBACK_STOP_EVENT.set()
+            sd.stop()
+            for btn in self.play_buttons.values():
+                btn.configure(text="▶ 播放生成音訊")
+            IS_PLAYING = False
+            time.sleep(0.1)
+            
+        if self.is_playing_recorded:
+            self.recorded_play_stop_event.set()
+            sd.stop()
+            self.btn_play_recorded.configure(text="▶ 播放錄音")
+            self.is_playing_recorded = False
+        else:
+            self.recorded_play_stop_event.clear()
+            self.btn_play_recorded.configure(text="⏹ 停止播放")
+            self.is_playing_recorded = True
+            
+            def _on_finished():
+                self.btn_play_recorded.configure(text="▶ 播放錄音")
+                self.is_playing_recorded = False
+                
+            self.recorded_play_thread = threading.Thread(
+                target=SoundPlayer.play_audio,
+                args=(self.recorded_filepath, self.recorded_play_stop_event, _on_finished),
+                daemon=True
+            )
+            self.recorded_play_thread.start()
+
+    def populate_recording_devices(self):
+        try:
+            import sounddevice as sd
+            devices = sd.query_devices()
+            input_devices = []
+            default_device_idx = sd.default.device[0] # Default input device idx
+            default_device_str = "預設輸入裝置"
+            
+            for idx, d in enumerate(devices):
+                if d['max_input_channels'] > 0:
+                    device_name = f"{idx}: {d['name']}"
+                    input_devices.append(device_name)
+                    if idx == default_device_idx:
+                        default_device_str = device_name
+            
+            if not input_devices:
+                self.menu_devices.configure(values=["無可用麥克風"])
+                self.recording_device_var.set("無可用麥克風")
+                self.btn_record.configure(state="disabled")
+                self.logger.log("⚠️ 系統未偵測到任何音訊輸入裝置（麥克風）。")
+            else:
+                self.menu_devices.configure(values=input_devices)
+                # Find if default exists in list, else use the first one
+                if default_device_str in input_devices:
+                    self.recording_device_var.set(default_device_str)
+                else:
+                    self.recording_device_var.set(input_devices[0])
+                self.btn_record.configure(state="normal")
+                self.logger.log(f"🎙️ 已載入 {len(input_devices)} 個音訊輸入裝置，預設為: {self.recording_device_var.get()}")
+        except Exception as e:
+            self.logger.log(f"⚠️ 取得音訊設備失敗: {e}")
+            self.menu_devices.configure(values=["設備取得出錯"])
+            self.recording_device_var.set("設備取得出錯")
+            self.btn_record.configure(state="disabled")
+
+    def toggle_recording(self):
+        if self.is_recording:
+            # Stop recording
+            self.is_recording = False
+            self.btn_record.configure(text="🔴 開始錄音", fg_color="#F44336", hover_color="#D32F2F")
+            
+            if self.recording_stream:
+                try:
+                    self.recording_stream.stop()
+                    self.recording_stream.close()
+                except Exception:
+                    pass
+                self.recording_stream = None
+            
+            # Reset visual waveform to a flat line when stopping
+            try:
+                self.wave_canvas.delete("wave")
+                self.wave_canvas.create_line(0, 22, 250, 22, fill="#555555", tags="wave", width=1)
+            except Exception:
+                pass
+
+            # Save the recorded file
+            if self.recorded_frames:
+                try:
+                    audio_data = np.concatenate(self.recorded_frames, axis=0)
+                    out_dir = self.output_dir_var.get()
+                    os.makedirs(out_dir, exist_ok=True)
+                    self.recorded_filepath = os.path.join(out_dir, "user_record_test.wav")
+                    
+                    sf.write(self.recorded_filepath, audio_data, 44100)
+                    
+                    duration = len(audio_data) / 44100.0
+                    self.lbl_record_status.configure(
+                        text=f"✅ 錄音完成！共 {duration:.1f} 秒 (已存至 outputs/user_record_test.wav)",
+                        text_color="#4CAF50"
+                    )
+                    self.logger.log(f"🎤 錄音成功儲存: {self.recorded_filepath}，時長: {duration:.1f} 秒")
+                    
+                    # Enable playback and apply buttons
+                    self.btn_play_recorded.configure(state="normal")
+                    self.btn_apply_clone.configure(state="normal")
+                    self.btn_apply_ultimate.configure(state="normal")
+                except Exception as e:
+                    self.lbl_record_status.configure(text=f"❌ 儲存音檔失敗: {e}", text_color="#F44336")
+                    self.logger.log(f"❌ 儲存錄音時發生錯誤: {e}")
+            else:
+                self.lbl_record_status.configure(text="⚠️ 未錄製到任何音訊資料。", text_color="#FF9800")
+        else:
+            # Start recording
+            device_str = self.recording_device_var.get()
+            if "無可用麥克風" in device_str or "設備取得出錯" in device_str:
+                messagebox.showerror("錯誤", "無可用的錄音輸入裝置！")
+                return
+            
+            # Parse device index
+            try:
+                device_idx = int(device_str.split(":")[0])
+            except Exception:
+                device_idx = None # fallback to default
+                
+            self.recorded_frames = []
+            self.vis_buffer = np.zeros(4000) # Reset visualization buffer
+            self.is_recording = True
+            self.btn_record.configure(text="⏹ 停止錄音", fg_color="#607D8B", hover_color="#455A64")
+            self.lbl_record_status.configure(text="🎙️ 正在錄音中...", text_color="#E91E63")
+            
+            # Disable other actions while recording
+            self.btn_play_recorded.configure(state="disabled")
+            self.btn_apply_clone.configure(state="disabled")
+            self.btn_apply_ultimate.configure(state="disabled")
+            
+            # Helper callback
+            def callback(indata, frames, time_info, status):
+                if self.is_recording:
+                    self.recorded_frames.append(indata.copy())
+                    # Shift and append to visualization buffer
+                    self.vis_buffer = np.roll(self.vis_buffer, -frames)
+                    self.vis_buffer[-frames:] = indata[:, 0]
+            
+            try:
+                self.recording_stream = sd.InputStream(
+                    samplerate=44100,
+                    channels=1,
+                    device=device_idx,
+                    callback=callback
+                )
+                self.recording_stream.start()
+                
+                # Start UI timer update
+                start_time = time.time()
+                self._update_recording_timer(start_time)
+                self.logger.log("🎤 開始現場錄音，請對著麥克風朗讀文本...")
+            except Exception as e:
+                self.is_recording = False
+                self.btn_record.configure(text="🔴 開始錄音", fg_color="#F44336", hover_color="#D32F2F")
+                self.lbl_record_status.configure(text=f"❌ 開啟錄音設備失敗: {e}", text_color="#F44336")
+                self.logger.log(f"❌ 無法開啟錄音裝置: {e}")
+
+    def _update_recording_timer(self, start_time):
+        if self.is_recording:
+            elapsed = time.time() - start_time
+            self.lbl_record_status.configure(text=f"🎙️ 正在錄音中 ({elapsed:.1f} 秒)...")
+            
+            # Draw real-time voice ripple/waveform
+            try:
+                width = 250
+                height = 45
+                mid_y = height / 2
+                points = []
+                step = 4000 // width
+                
+                for i in range(width):
+                    val = self.vis_buffer[i * step]
+                    # Apply gain to make it visually obvious
+                    y = mid_y - (val * mid_y * 2.5)
+                    y = max(2, min(height - 2, y))
+                    points.append((i, y))
+                    
+                self.wave_canvas.delete("wave")
+                for idx in range(len(points) - 1):
+                    self.wave_canvas.create_line(
+                        points[idx][0], points[idx][1],
+                        points[idx+1][0], points[idx+1][1],
+                        fill="#E91E63", tags="wave", width=2
+                    )
+            except Exception:
+                pass
+            
+            # Stop automatically after 15 seconds to prevent extremely long audio
+            if elapsed >= 15.0:
+                self.logger.log("⏱️ 已達錄音上限 15 秒，系統自動停止錄音。")
+                self.toggle_recording()
+            else:
+                self.after(50, lambda: self._update_recording_timer(start_time)) # Update every 50ms for smoother animation
+
+    def use_recorded_for_clone(self):
+        if not self.recorded_filepath or not os.path.exists(self.recorded_filepath):
+            messagebox.showwarning("警告", "請先完成錄音！")
+            return
+        self.entry_clone_ref.delete(0, tk.END)
+        self.entry_clone_ref.insert(0, self.recorded_filepath)
+        self.select_view("clone")
+        self.logger.log(f"🎤 已將現場錄音套用至「聲音複製」的參考語音檔。")
+
+    def use_recorded_for_ultimate(self):
+        if not self.recorded_filepath or not os.path.exists(self.recorded_filepath):
+            messagebox.showwarning("警告", "請先完成錄音！")
+            return
+        self.entry_ult_ref.delete(0, tk.END)
+        self.entry_ult_ref.insert(0, self.recorded_filepath)
+        self.entry_ult_prompt.delete(0, tk.END)
+        self.entry_ult_prompt.insert(0, self.record_prompt_text)
+        self.select_view("ultimate")
+        self.logger.log(f"🎤 已將現場錄音與對應逐字稿套用至「極限複製」。")
 
     def open_output_folder(self):
         out_dir = self.output_dir_var.get()
@@ -1077,13 +1734,15 @@ class App(ctk.CTk):
         threading.Thread(target=self._download_thread_run, args=(source, model_dir, missing_files), daemon=True).start()
 
     def _download_thread_run(self, source, model_dir, files_to_download):
-        use_scope = "ModelScope" in source
-        if use_scope:
+        if "ModelScope" in source:
             base_url = "https://modelscope.cn/api/v1/models/OpenBMB/VoxCPM2/repo?Revision=master&FilePath="
             self.logger.log("🔄 開始下載缺失的模型檔案 (來源: ModelScope)...")
-        else:
+        elif "鏡像" in source:
             base_url = "https://hf-mirror.com/openbmb/VoxCPM2/resolve/main/"
-            self.logger.log("🔄 開始下載缺失的模型檔案 (來源: Hugging Face)...")
+            self.logger.log("🔄 開始下載缺失的模型檔案 (來源: Hugging Face 鏡像)...")
+        else:
+            base_url = "https://huggingface.co/openbmb/VoxCPM2/resolve/main/"
+            self.logger.log("🔄 開始下載缺失的模型檔案 (來源: Hugging Face 官方)...")
             
         self.logger.log(f"待下載清單: {', '.join(files_to_download)}")
         
@@ -1163,63 +1822,128 @@ class App(ctk.CTk):
 
     def _download_single_file(self, url, temp_filepath, filename, idx, total_count):
         import urllib.request
+        import urllib.error
         import time
+        import socket
         
-        start_time = time.time()
-        last_ui_update = 0
+        max_retries = 5
+        retry_delay = 3
+        timeout = 20  # 20 seconds timeout for connect and read
         
-        try:
+        for attempt in range(1, max_retries + 1):
+            if self.download_cancelled_event.is_set():
+                return False
+                
+            bytes_so_far = 0
+            if os.path.exists(temp_filepath):
+                bytes_so_far = os.path.getsize(temp_filepath)
+                
             req = urllib.request.Request(
                 url, 
                 headers={'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'}
             )
             
+            if bytes_so_far > 0:
+                req.add_header('Range', f'bytes={bytes_so_far}-')
+                
             os.makedirs(os.path.dirname(temp_filepath), exist_ok=True)
             
-            with urllib.request.urlopen(req) as response:
-                total_size = int(response.info().get('Content-Length', 0))
-                bytes_so_far = 0
-                block_size = 512 * 1024  # 512 KB chunks
+            try:
+                if attempt > 1:
+                    self.logger.log(f"正在連線到下載伺服器 (嘗試 {attempt}/{max_retries})...")
                 
-                with open(temp_filepath, 'wb') as f:
-                    while True:
-                        if self.download_cancelled_event.is_set():
-                            return False
-                            
-                        chunk = response.read(block_size)
-                        if not chunk:
-                            break
-                        f.write(chunk)
-                        bytes_so_far += len(chunk)
+                with urllib.request.urlopen(req, timeout=timeout) as response:
+                    status_code = response.getcode()
+                    
+                    if status_code == 206:
+                        # Resuming download
+                        file_mode = 'ab'
+                        content_range = response.info().get('Content-Range', '')
+                        total_size = 0
+                        if '/' in content_range:
+                            try:
+                                total_size = int(content_range.split('/')[-1])
+                            except ValueError:
+                                pass
+                        if not total_size:
+                            total_size = bytes_so_far + int(response.info().get('Content-Length', 0))
+                        self.logger.log(f"➡️ 偵測到未完成下載，已從 {bytes_so_far / (1024*1024):.1f}MB 處繼續下載...")
+                    else:
+                        # Normal download from scratch (or server does not support partial content)
+                        bytes_so_far = 0
+                        file_mode = 'wb'
+                        total_size = int(response.info().get('Content-Length', 0))
                         
-                        # Throttle UI updates to once every 150ms to avoid freezing the GUI
-                        current_time = time.time()
-                        if current_time - last_ui_update > 0.15:
-                            last_ui_update = current_time
-                            elapsed = current_time - start_time
-                            speed = (bytes_so_far / (1024 * 1024)) / elapsed if elapsed > 0 else 0
+                    block_size = 256 * 1024  # 256 KB chunks
+                    start_time = time.time()
+                    last_ui_update = 0
+                    session_bytes_downloaded = 0
+                    
+                    with open(temp_filepath, file_mode) as f:
+                        while True:
+                            if self.download_cancelled_event.is_set():
+                                return False
+                                
+                            chunk = response.read(block_size)
+                            if not chunk:
+                                break
+                                
+                            f.write(chunk)
+                            bytes_so_far += len(chunk)
+                            session_bytes_downloaded += len(chunk)
                             
-                            if total_size > 0:
-                                percent = float(bytes_so_far) / total_size * 100
-                                remaining_bytes = total_size - bytes_so_far
-                                speed_bytes = bytes_so_far / elapsed if elapsed > 0 else 0
-                                remaining_seconds = remaining_bytes / speed_bytes if speed_bytes > 0 else 0
+                            current_time = time.time()
+                            if current_time - last_ui_update > 0.15:
+                                last_ui_update = current_time
+                                elapsed = current_time - start_time
+                                speed = (session_bytes_downloaded / (1024 * 1024)) / elapsed if elapsed > 0 else 0
                                 
-                                rem_min, rem_sec = divmod(int(remaining_seconds), 60)
-                                rem_str = f"{rem_min:02d}:{rem_sec:02d}"
+                                if total_size > 0:
+                                    percent = float(bytes_so_far) / total_size * 100
+                                    remaining_bytes = total_size - bytes_so_far
+                                    speed_bytes = session_bytes_downloaded / elapsed if elapsed > 0 else 0
+                                    remaining_seconds = remaining_bytes / speed_bytes if speed_bytes > 0 else 0
+                                    
+                                    rem_min, rem_sec = divmod(int(remaining_seconds), 60)
+                                    rem_str = f"{rem_min:02d}:{rem_sec:02d}"
+                                    
+                                    status_text = f"正在下載 [{idx}/{total_count}] {filename}: {percent:.1f}% | {bytes_so_far / (1024*1024):.1f}MB / {total_size / (1024*1024):.1f}MB | {speed:.2f} MB/s | 剩餘時間: {rem_str}"
+                                    progress_val = bytes_so_far / total_size
+                                else:
+                                    status_text = f"正在下載 [{idx}/{total_count}] {filename}: {bytes_so_far / (1024*1024):.1f}MB | {speed:.2f} MB/s"
+                                    progress_val = 0.5
+                                    
+                                self._safe_update_ui(status_text, progress_val)
                                 
-                                status_text = f"正在下載 [{idx}/{total_count}] {filename}: {percent:.1f}% | {bytes_so_far / (1024*1024):.1f}MB / {total_size / (1024*1024):.1f}MB | {speed:.2f} MB/s | 剩餘時間: {rem_str}"
-                                progress_val = bytes_so_far / total_size
-                            else:
-                                status_text = f"正在下載 [{idx}/{total_count}] {filename}: {bytes_so_far / (1024*1024):.1f}MB | {speed:.2f} MB/s"
-                                progress_val = 0.5
-                                
-                            self._safe_update_ui(status_text, progress_val)
-                            
-            return True
-        except Exception as e:
-            print(f"Error downloading {filename}: {e}")
-            return False
+                # If we successfully completed the loop and written everything
+                return True
+                
+            except urllib.error.HTTPError as e:
+                if e.code == 416:
+                    self.logger.log(f"⚠️ 伺服器拒絕續傳 (HTTP 416)，將刪除暫存檔並重頭下載...")
+                    if os.path.exists(temp_filepath):
+                        try:
+                            os.remove(temp_filepath)
+                        except Exception:
+                            pass
+                else:
+                    self.logger.log(f"⚠️ 連線發生 HTTP 錯誤 (代碼 {e.code}): {e.reason}")
+                
+            except (urllib.error.URLError, socket.timeout, ConnectionResetError) as e:
+                self.logger.log(f"⚠️ 連線超時或異常: {e}")
+                
+            except Exception as e:
+                self.logger.log(f"⚠️ 下載時發生非預期錯誤: {e}")
+                
+            # Wait before retry
+            if attempt < max_retries:
+                self.logger.log(f"⏱️ 將於 {retry_delay} 秒後進行第 {attempt + 1} 次重試...")
+                for _ in range(retry_delay * 10):
+                    if self.download_cancelled_event.is_set():
+                        return False
+                    time.sleep(0.1)
+                    
+        return False
 
     def _safe_update_ui(self, text, val):
         self.after(0, lambda: self._update_ui_elements(text, val))

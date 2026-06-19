@@ -518,7 +518,7 @@
     <!-- Main Content Area -->
     <div class="main-content">
         <header>
-            <div class="version-badge">版本 V20260614</div>
+            <div class="version-badge">版本 V20260619</div>
             <h1>Studio0808 語音合成工作站</h1>
             <div class="subtitle">基於 OpenBMB VoxCPM2 最新開源語音合成模型，提供極致流暢、媲美真人的聲音複製與配音體驗。</div>
         </header>
@@ -532,8 +532,14 @@
                 <div class="step-item">
                     <div class="step-number">1</div>
                     <div class="step-text">
-                        <h4>設定本機路徑與下載模型</h4>
-                        <p>切換至 <strong>「系統設定」</strong> 分頁，確認您的本機模型儲存路徑。點選 <strong>「開始下載 / 檢查模型」</strong> 啟動極速下載。本系統會逐一檢查檔案完整性，如中途關閉，下次點擊只會補下載缺少的檔案，絕不重複下載已完成的檔案。您也可以點選「停止下載」安全中止下載程序。</p>
+                        <h4>設定下載伺服器與下載模型</h4>
+                        <p>切換至 <strong>「系統設定」</strong> 分頁，確認您的儲存路徑。本系統提供了三個下載來源：</p>
+                        <ul style="margin: 5px 0 10px 20px; color: var(--text-muted); font-size: 14px;">
+                            <li><strong>Hugging Face 官方 (推薦)</strong>：最為推薦，台灣與海外地區下載極速（頻寬全開）。</li>
+                            <li><strong>Hugging Face 鏡像</strong>：在大陸地區使用推薦。</li>
+                            <li><strong>ModelScope</strong>：大陸地區極速備用管道。</li>
+                        </ul>
+                        <p>選定下載源後點選 <strong>「開始下載 / 檢查模型」</strong>。系統已實作 **20秒連線超時與5次自動重試**，且支援 **斷點續傳 (Range)** 機制。如遇網路波動會自動在原位置續傳，不會像舊版那樣無回應卡死，也不會重複下載已完成的檔案。您也可以點選「停止下載」安全中止下載程序。</p>
                     </div>
                 </div>
                 <div class="step-item">
@@ -602,6 +608,7 @@
                 <div class="callout-title">⚠️ 對於複製參考音訊的建議</div>
                 為了獲得最佳的複製效果，請確保您上傳的 3-10 秒參考音檔滿足以下條件：
                 <ul style="margin: 10px 0 0 20px;">
+                    <li><strong>錄音長度並非越長越好</strong>：官方建議最佳長度為 <strong>3 ~ 10 秒</strong>（5 ~ 8 秒最理想）。如果錄音過長（例如超過 20-30 秒），會大幅占用模型的自注意力上下文視窗，導致後半段生成的音訊容易出現重複跳針、幻聽、胡言亂語或提早中斷等問題。因此，請使用短而清晰乾淨的錄音。</li>
                     <li><strong>無噪音</strong>：背景不能有音樂（BGM）、風聲、噪聲或多人雜音。</li>
                     <li><strong>單一發音人</strong>：音檔中只能有一個人說話，且沒有過度回音。</li>
                     <li><strong>語音清晰</strong>：說話口齒清晰、發音自然。長度以 5~7 秒最佳。</li>
@@ -655,26 +662,101 @@
                         <td>開啟 / 關閉</td>
                         <td>開啟後，會自動將文字中的阿拉伯數字和特殊符號轉譯為對應的文字（例如：<code>100元</code> 會被讀為 <code>一百元</code>）。若輸入文字包含大量數字，強烈建議開啟。</td>
                     </tr>
-                    <tr>
+                     <tr>
                         <td class="param-name">參考音訊自動降噪</td>
                         <td><span class="badge badge-blue">關閉</span></td>
                         <td>開啟 / 關閉</td>
                         <td>若您上傳的參考語音含有輕微底噪、沙沙聲，開啟此功能會使用內置降噪算法先對參考音做預處理，能顯著改善克隆出來的語音純淨度。</td>
                     </tr>
+                    <tr>
+                        <td class="param-name">隨機種子 (聲音 ID)</td>
+                        <td><span class="badge badge-primary">隨機 (關閉固定)</span></td>
+                        <td>整數 (0 ~ 2^64-1)</td>
+                        <td>控制語音生成的起點隨機數。<strong>這是聲音的身份證！</strong><br>
+                        • <strong>關閉固定時</strong>：每次生成都會使用隨機音色，並在日誌中印出隨機種子 ID。<br>
+                        • <strong>開啟固定時</strong>：輸入指定的種子 ID（如 `42`），聲音音色、語氣、呼吸起伏將完全固定一致，不再「拆盲盒」。</td>
+                    </tr>
                 </tbody>
             </table>
+            
+            <h3>🔒 隨機種子與固定音色（聲音 ID 使用指南與有聲書實務）</h3>
+            <p>隨機種子控制著 AI 語音合成的「隨機噪音初始化狀態」，這相當於人聲特徵與語氣的「基因起點」。然而在不同的生成模式下，種子的表現有著本質上的物理差異：</p>
+
+            <div class="callout warning">
+                <div class="callout-title">⚠️ 核心物理限制：在「語音設計」中，相同的種子 + 不同的文字 = 不同的音色</div>
+                <p>由於「語音設計（Zero-shot 無中生有）」模式中沒有提供任何外部參考音檔，模型是純粹根據您的「文字長度」與「文字語意」來計算注意力權重並生成聲音。當您修改了輸入框的文字（例如將「哈囉」改成「測試」），即使固定了隨機種子，模型在生成時仍會因上下文變動而偏轉至不同的音色。<strong>因此，光靠固定種子是無法直接在語音設計分頁實現「同一個音色配音不同語句」的。</strong></p>
+            </div>
+
+            <h3>💡 有聲書與長篇文章配音：如何鎖定「同一個主播音色」？</h3>
+            <p>如果您希望為小說或有聲書創造一個專屬主播，並讓他朗讀各種不同的句子，請務必遵循以下<strong>「黃金工作流」</strong>：</p>
+            
+            <div class="step-list">
+                <div class="step-item">
+                    <div class="step-number">1</div>
+                    <div class="step-text">
+                        <h4>【語音設計】無中生有創造主播</h4>
+                        <p>首先在「<strong>語音設計</strong>」中輸入您滿意的聲音特徵描述（如 <code>(A young woman, gentle and sweet voice)</code>），使用隨機種子進行合成。當聽到一個您非常喜愛、極度適合做為主播的聲音時，將該次產生的 WAV 檔案保存下來（例如命名為 <code>my_host.wav</code>）。</p>
+                    </div>
+                </div>
+                <div class="step-item">
+                    <div class="step-number">2</div>
+                    <div class="step-text">
+                        <h4>【聲音複製】放入參考音檔錨定音色</h4>
+                        <p>切換至「<strong>聲音複製</strong>」或「<strong>極限複製</strong>」分頁，將剛才存好的 <code>my_host.wav</code> 放進「參考語音檔案」欄位。此時，該音檔的音色特徵（Speaker Embedding）將被強制鎖定為您的專屬主播。</p>
+                    </div>
+                </div>
+                <div class="step-item">
+                    <div class="step-number">3</div>
+                    <div class="step-text">
+                        <h4>輸入各種文字，開始有聲書配音</h4>
+                        <p>在目標合成文字中貼入有聲書的各種不同句子，模型便會強行使用同一位主播的聲音去配音，文字再怎麼改變，音色都不會再走樣！</p>
+                    </div>
+                </div>
+            </div>
+
+            <h3>❓ 不同模式下需要「固定隨機種子」嗎？分析與建議</h3>
+            <p>平時<strong>「固定隨機種子」的核取方塊建議維持「不勾選」狀態</strong>。以下是不同分頁的使用指南：</p>
+
+            <table style="margin: 15px 0;">
+                <thead>
+                    <tr>
+                        <th style="width: 20%;">功能分頁</th>
+                        <th style="width: 40%;">不固定種子（推薦，不勾選）</th>
+                        <th style="width: 40%;">固定種子（勾選並輸入 ID）</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td class="param-name">語音設計</td>
+                        <td>每次生成都會是全新、隨機的不同聲線，就像拆盲盒一樣，適合用來<strong>發掘與挑選滿意的虛擬人聲</strong>。</td>
+                        <td>主要用於<strong>「單句微調」</strong>。例如您對某句生成的語音很滿意，但想稍微修改其中一個字或句尾標點符號，此時固定種子能用最接近原配音員的感覺去唸修改後的句子。</td>
+                    </tr>
+                    <tr>
+                        <td class="param-name">聲音複製<br>與極限複製</td>
+                        <td>每次生成都會用同一人的音色，但使用不同的語氣、停頓換氣與重音起伏（相當於<strong>同一個配音員重複錄製多個 Take</strong>）。若覺得第一版不夠生動，直接再按一次生成，挑選最完美的一版即可。</td>
+                        <td>鎖定特定的「語氣起伏、呼吸與換氣間隔」。通常只有在<strong>「進行 CFG/Steps 等進階參數 A/B 測試」</strong>或<strong>「合成極長段落需要拼接（保持背景底噪一致）」</strong>時，才有固定種子的需要。</td>
+                    </tr>
+                </tbody>
+            </table>
+            
+            <div class="callout tip">
+                <div class="callout-title">💡 聲音 ID 的宇宙</div>
+                種子 ID 支援從 <code>0</code> 到 <code>18446744073709551615</code> 的所有正整數。這代表有近 2000 億億種不同的獨特人聲組合供您發掘！您也可以輸入幸運數字如 <code>888888</code>，這也是一種聲音。
+            </div>
         </section>
 
         <!-- 💡 Use Cases & Limits -->
         <section id="use-cases">
             <h2>💡 應用場景、文字上限與語音限制</h2>
             
-            <h3>1. 文字長度與生成時間限制</h3>
-            <p>因為 VoxCPM2 是基於自迴歸（Autoregressive）架構的 AI 模型，其內部具有上下文窗口（Context Window）長度限制，因此在單次生成中，<strong>文字輸入與生成時間有其上限限制</strong>：</p>
+            <h3>1. 各功能單次合成之文字長度與字數限制</h3>
+            <p>因為 VoxCPM2 採用了先進的<strong>自迴歸（Autoregressive）</strong>架構，模型內部具有有限的自注意力上下文視窗（Context Window），因此單次能處理與生成的文字具有物理上限：</p>
             <ul>
-                <li style="margin-left: 20px; margin-bottom: 8px;"><strong>單次文字長度建議</strong>：請將單次合成的文字控制在 <strong>100 至 150 字中文以內</strong>（約 15~20 秒的說話長度）。</li>
-                <li style="margin-left: 20px; margin-bottom: 8px;"><strong>文字過長會怎樣？</strong>：如果單次輸入過長（例如輸入好幾百字），到了後半段，語音可能會出現<strong>胡言亂語、聲音破裂、重複跳針、甚至直接無聲中斷</strong>的現象。這是自迴歸模型的物理限制。</li>
-                <li style="margin-left: 20px; margin-bottom: 12px;"><strong>解決長篇生成的方案</strong>：請善用 <strong>「批次合成 (逐行)」</strong> 功能，將長文章或小說依標點符號分行輸入。系統會分段生成多個極為穩定的 WAV 檔，不僅能防跳針，還能透過多個小檔案進行後期音效與配樂整合！</li>
+                <li style="margin-left: 20px; margin-bottom: 8px;"><strong>✨ 語音設計 (Voice Design)</strong>：單次建議在 <strong>100 至 150 字中文以內</strong>（約 15~20 秒的說話長度）。</li>
+                <li style="margin-left: 20px; margin-bottom: 8px;"><strong>👥 聲音複製 (Voice Clone)</strong>：單次建議在 <strong>100 至 150 字中文以內</strong>。模型載入 3~10 秒參考音色後，剩餘的上下文視窗即可用來生成此長度的目標文字。</li>
+                <li style="margin-left: 20px; margin-bottom: 8px;"><strong>👑 極限複製 (Ultimate Clone)</strong>：單次建議控制在 <strong>80 至 120 字中文以內</strong>。由於極限複製需同時輸入「參考音訊」與「參考逐字稿（Prompt Text）」，這些提示內容會預先占用模型部分的視窗空間，因此目標合成文字的可生成長度會被進一步縮短。</li>
+                <li style="margin-left: 20px; margin-bottom: 8px;"><strong>文字過長會怎樣？</strong>：如果單次合成字數超出上限，自迴歸生成在後半段會產生注意力渙散，導致語音出現<strong>胡言亂語（幻聽）、重寫跳針、聲音沙啞破裂、或突然靜音中斷</strong>等模型崩潰現象。</li>
+                <li style="margin-left: 20px; margin-bottom: 12px;"><strong>解決長篇生成的方案</strong>：請善用「語音設計」分頁中的 **「批次合成 (逐行)」** 功能。將長文章或小說依照標點符號分行輸入（一行一句），系統會在背景自動分段合成多個極為穩定的獨立 WAV 檔，不僅防跳針，也極度便利於後期的音效與配樂合成！</li>
             </ul>
 
             <h3>2. 應用場景最佳實踐</h3>
@@ -723,9 +805,29 @@
             </div>
 
             <div class="accordion-item">
-                <div class="accordion-header">Q4：在 Windows 上下載模型時，如果網路中斷該怎麼辦？</div>
+                <div class="accordion-header">Q4：如果合成聲音時字唸錯了（例如多音破音字、生僻字唸錯）該如何處理？</div>
+                <div class="accordion-content">
+                    <p>AI 語音模型是根據字詞拼音進行推理，有時會對多音字（破音字，如「連假」唸成「連甲」）判斷錯誤，或對罕見字（如「飆」）拼讀失敗。<strong>最直接且有效的解決方案是使用「同音字替換」！</strong></p>
+                    <p>由於這個文字框輸入的內容只用來給 AI 生成語音，聽眾只會聽到聲音、看不到文字，因此您可以使用同音的常見字來代替：</p>
+                    <ul style="margin: 10px 0 10px 20px; color: var(--text-muted); font-size: 14px;">
+                        <li>將 <strong>「連假」</strong> 修改為 <strong>「連架」</strong> 或 <strong>「連價」</strong>（即可引導模型唸出正確的四聲 ㄐㄧㄚˋ）。</li>
+                        <li>將 <strong>「狂飆」</strong> 修改為 <strong>「狂標」</strong>（即可唸出正確的 ㄅㄧㄠ 讀音）。</li>
+                    </ul>
+                    <p>這在配音實務中是非常常見且實用的微調技巧，直接在文字框修改即可，無須安裝額外注音工具。</p>
+                </div>
+            </div>
+
+            <div class="accordion-item">
+                <div class="accordion-header">Q5：在 Windows 上下載模型時，如果網路中斷該怎麼辦？</div>
                 <div class="accordion-content">
                     <p>別擔心！您可以直接點選程式中的「停止下載」，或者在網路異常斷開時，重啟下載即可。由於我們實作了斷點檢查，再次啟動時程式會自動偵測本機下載進度，未下載完的檔案會先清除後重新下載，已下載完成的檔案則完全不受影響，非常安全。</p>
+                </div>
+            </div>
+
+            <div class="accordion-item">
+                <div class="accordion-header">Q6：為什麼在別的地方執行打包後的 EXE，切換參數會出現 `could not get source code` 錯誤？</div>
+                <div class="accordion-content">
+                    <p>這是為什麽 PyTorch 的 <code>torch.compile</code> 動態編譯器（Dynamo）在執行新參數的分支時，需要讀取原始的 <code>.py</code> 原始碼檔案。而 PyInstaller 打包時會移除原始碼（只保留 <code>.pyc</code> 二進位檔），進而導致崩潰。<strong>本工作站已全面修復此問題！</strong> 我們在打包後的 EXE 運作環境中會自動切換為高穩定性的 Eager 運算模式，完全避開了即時編譯錯誤，確保在各種硬體與參數切換下皆能完美運行。</p>
                 </div>
             </div>
         </section>

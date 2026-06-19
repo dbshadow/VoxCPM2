@@ -8,3 +8,5 @@ outputs/
 *.downloading
 .vscode/
 .idea/
+build/
+dist/
