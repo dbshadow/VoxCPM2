@@ -502,8 +502,9 @@
         
         <ul class="nav-menu">
             <li class="nav-title">快速指引</li>
-            <li class="nav-item active"><a href="#quick-start">🚀 快速入門</a></li>
+            <li class="nav-item active"><a href="#quick-start">🚀 快速入門與下載</a></li>
             <li class="nav-title">核心功能</li>
+            <li class="nav-item"><a href="#voice-record">🎤 即時錄音</a></li>
             <li class="nav-item"><a href="#voice-design">✨ 語音設計</a></li>
             <li class="nav-item"><a href="#voice-clone">👥 聲音複製</a></li>
             <li class="nav-item"><a href="#ultimate-clone">👑 極限複製</a></li>
@@ -519,13 +520,23 @@
     <div class="main-content">
         <header>
             <div class="version-badge">版本 V20260619</div>
+            <a href="YOUR_DOWNLOAD_LINK_HERE" class="download-btn-header" style="float: right; padding: 10px 20px; background: linear-gradient(135deg, var(--accent-pink), var(--accent-orange)); color: white; text-decoration: none; border-radius: 6px; font-weight: bold; font-size: 14px; box-shadow: 0 4px 12px rgba(233, 30, 99, 0.4); transition: all 0.3s ease;">📥 下載免安裝主程式 (Windows)</a>
             <h1>Studio0808 語音合成工作站</h1>
             <div class="subtitle">基於 OpenBMB VoxCPM2 最新開源語音合成模型，提供極致流暢、媲美真人的聲音複製與配音體驗。</div>
         </header>
 
         <!-- 🚀 Quick Start -->
         <section id="quick-start">
-            <h2>🚀 快速入門</h2>
+            <h2>🚀 快速入門與下載</h2>
+            
+            <div class="callout tip" style="display: flex; justify-content: space-between; align-items: center; gap: 15px; border-left-color: var(--accent-green);">
+                <div>
+                    <div class="callout-title" style="font-size: 16px; color: var(--text-main);">📦 工作站主程式下載 (免安裝綠色版)</div>
+                    <p style="margin: 5px 0 0 0; font-size: 14px; color: var(--text-muted);">下載解壓後即可在 Windows 直接運行，免配置複雜 Python 環境。首次開啟程式後，請在「系統設定」分頁一鍵自動下載模型權重。</p>
+                </div>
+                <a href="YOUR_DOWNLOAD_LINK_HERE" target="_blank" style="flex-shrink: 0; padding: 12px 24px; background-color: var(--accent-green); color: white; text-decoration: none; border-radius: 6px; font-weight: bold; font-size: 15px; box-shadow: 0 4px 10px rgba(76, 175, 80, 0.3); display: inline-block;">📥 點此前往雲端下載</a>
+            </div>
+
             <p>本工具是一個全離線的 AI 語音合成工作站。首次使用時，需要先下載模型權重檔案。我們已經在程式內置了極速的 ModelScope (大陸鏡像節點) 下載通道，您可以按照以下步驟快速上手：</p>
             
             <div class="step-list">
@@ -561,6 +572,42 @@
             <div class="callout tip">
                 <div class="callout-title">💡 硬體加速建議</div>
                 如果您配備有 NVIDIA 顯示卡，請確認本程式底部日誌中顯示有 <code>系統偵測到 NVIDIA GPU: GeForce ...</code> 且已啟用 CUDA。這將提供高達數十倍的生成速度提升，達成秒級生成！
+            </div>
+        </section>
+
+        <!-- 🎤 Live Voice Recording -->
+        <section id="voice-record">
+            <h2>🎤 即時錄音 (Live Recording Test)</h2>
+            <p><strong>適合場景</strong>：手邊沒有錄音檔，想當場錄製自己或現場的聲音，來立即測試語音合成克隆的效果。</p>
+            <p>即時錄音是 V20260619 版本全新加入的便利功能。整合了本機音訊輸入裝置選取、即時音量波形顯示與一鍵套用機制，讓測試變得更加流暢。</p>
+
+            <div class="step-list">
+                <div class="step-item">
+                    <div class="step-number">1</div>
+                    <div class="step-text">
+                        <h4>選擇錄音設備與讀稿準備</h4>
+                        <p>在下拉選單中選取您的麥克風輸入裝置。如果您剛接上新的麥克風，可以點擊「🔄 重新整理」按鈕重新掃描。中間的卡片會顯示我們為您設計的黃金長度讀稿文本（已為您精簡為適當的長度以避免自迴歸模型字數溢出崩潰）。</p>
+                    </div>
+                </div>
+                <div class="step-item">
+                    <div class="step-number">2</div>
+                    <div class="step-text">
+                        <h4>開始錄音與音波確認</h4>
+                        <p>點選紅色的 <strong>「🔴 開始錄音」</strong> 按鈕，並對著麥克風以正常的語速與音量朗讀文本。在錄音期間，按鈕右側的 **Canvas 波形區會即時浮現粉紅色的波浪震幅**，這能直觀確認您的麥克風有正常收音！</p>
+                        <p>讀完後點選 <strong>「⏹ 停止錄音」</strong>。系統限制最長錄音為 15 秒（以防長度過長導致合成崩潰）。</p>
+                    </div>
+                </div>
+                <div class="step-item">
+                    <div class="step-number">3</div>
+                    <div class="step-text">
+                        <h4>試聽與一鍵套用測試</h4>
+                        <p>錄音成功後，您可以點擊 <strong>「▶ 播放錄音」</strong> 進行試聽。確認無誤後，即可點選下方套用按鈕：</p>
+                        <ul style="margin: 5px 0 10px 20px; color: var(--text-muted); font-size: 14px;">
+                            <li><strong>👥 套用至 聲音複製</strong>：一鍵將此錄音檔載入為複製參考音訊，並自動跳轉分頁。</li>
+                            <li><strong>👑 套用至 極限複製</strong>：一鍵將此錄音檔載入為參考音訊，且自動將您的「錄音讀稿逐字稿」帶入至「參考語意逐字稿」中，並自動跳轉分頁。</li>
+                        </ul>
+                    </div>
+                </div>
             </div>
         </section>
 
