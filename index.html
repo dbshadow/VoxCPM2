@@ -503,6 +503,7 @@
         <ul class="nav-menu">
             <li class="nav-title">快速指引</li>
             <li class="nav-item active"><a href="#quick-start">🚀 快速入門與下載</a></li>
+            <li class="nav-item"><a href="#dist-pkg">📦 打包體積與分發</a></li>
             <li class="nav-title">核心功能</li>
             <li class="nav-item"><a href="#voice-record">🎤 即時錄音</a></li>
             <li class="nav-item"><a href="#voice-design">✨ 語音設計</a></li>
@@ -571,6 +572,61 @@
             <div class="callout tip">
                 <div class="callout-title">💡 硬體加速建議</div>
                 如果您配備有 NVIDIA 顯示卡，請確認本程式底部日誌中顯示有 <code>系統偵測到 NVIDIA GPU: GeForce ...</code> 且已啟用 CUDA。這將提供高達數十倍的生成速度提升，達成秒級生成！
+            </div>
+        </section>
+
+        <!-- 📦 Packaging & Distribution -->
+        <section id="dist-pkg">
+            <h2>📦 程式打包體積與分發說明</h2>
+            <p>當您手動執行打包後，會發現輸出的 <code>dist/Studio0808_VoxCPM/_internal</code> 資料夾體積高達約 <strong>5.2 GB</strong>，這並非程式碼本身臃腫，而是本機運作強大 AI 模型所必需的依賴庫。以下為您詳細拆解體積組成，並說明我們推薦的<strong>分享與分發做法</strong>。</p>
+
+            <div class="callout warning" style="background-color: rgba(156, 39, 176, 0.05); border-left-color: var(--primary);">
+                <div class="callout-title" style="color: var(--text-main);">🔍 體積龐大的核心原因：GPU 加速 (CUDA) 依賴庫</div>
+                <p>這主要是因為具有 GPU 加速（CUDA）能力的 PyTorch 函式庫體積非常龐大。我們可以從分析數據中看到，最占空間的前幾名檔案全都是 PyTorch 與 NVIDIA CUDA 相關的動態連結庫（DLL）：</p>
+                <ul style="margin: 10px 0 10px 20px; color: var(--text-muted); font-size: 14px;">
+                    <li style="margin-bottom: 6px;"><strong><code>torch_cuda.dll</code> (821 MB)</strong> — PyTorch CUDA 核心</li>
+                    <li style="margin-bottom: 6px;"><strong><code>cublasLt64_12.dll</code> (674 MB)</strong> — 矩陣乘法加速庫</li>
+                    <li style="margin-bottom: 6px;"><strong><code>cudnn_engines_precompiled64_9.dll</code> (480 MB)</strong> — 神經網路預編譯引擎</li>
+                    <li style="margin-bottom: 6px;"><strong><code>cusparse64_12.dll</code> (379 MB)</strong> — 稀疏矩陣計算庫</li>
+                    <li style="margin-bottom: 6px;"><strong><code>onnxruntime_providers_cuda.dll</code> (312 MB)</strong> — ONNX 加速運算庫</li>
+                    <li style="margin-bottom: 6px;">其他諸如 <code>cufft</code> (傅立葉轉換庫)、<code>cusolver</code> (矩陣求解器) 等等...</li>
+                </ul>
+                <p style="margin-top: 10px; margin-bottom: 0;">光是上面這幾十個 CUDA 相關的 DLL 檔案加起來就占了 <strong>4.5 GB 以上</strong>。這些是為了讓語音生成能利用 NVIDIA 顯示卡進行「秒級運算」的硬體加速必備組件。</p>
+            </div>
+
+            <div class="callout tip">
+                <div class="callout-title">💡 推薦的分享與分發最佳做法</div>
+                <p>如果您要將打包後的程式上傳至雲端硬碟（如 Google Drive）分享給他人使用，請務必按照以下步驟處理以節省傳輸頻寬與時間：</p>
+                <div class="step-list">
+                    <div class="step-item">
+                        <div class="step-number">1</div>
+                        <div class="step-text">
+                            <h4>排除模型權重檔案</h4>
+                            <p>確保您打包與分享的資料夾中<strong>不包含</strong> <code>models/</code> 下的大型模型權重（模型權重已列在 <code>.gitignore</code> 中，大小約 4.3 GB）。這樣可以保持主程式打包檔的純淨。</p>
+                        </div>
+                    </div>
+                    <div class="step-item">
+                        <div class="step-number">2</div>
+                        <div class="step-text">
+                            <h4>將整個資料夾壓縮為 ZIP</h4>
+                            <p>請將打包輸出的 <code>dist/Studio0808_VoxCPM</code> 整體資料夾（包含 <code>Studio0808_VoxCPM.exe</code> 與整個 <code>_internal</code> 目錄）直接壓縮成一個 <strong><code>.zip</code> 壓縮包</strong>。</p>
+                        </div>
+                    </div>
+                    <div class="step-item">
+                        <div class="step-number">3</div>
+                        <div class="step-text">
+                            <h4>體積大減至 2.0 ~ 2.5 GB</h4>
+                            <p>由於 NVIDIA CUDA DLL 庫中包含大量重複且高度可壓縮的二進位結構，<strong>經過壓縮後的 ZIP 檔體微會驟降至 2.0 ~ 2.5 GB 左右</strong>。如此一來，上傳與下載時間可減半！</p>
+                        </div>
+                    </div>
+                    <div class="step-item">
+                        <div class="step-number">4</div>
+                        <div class="step-text">
+                            <h4>使用者首次下載並一鍵部署模型</h4>
+                            <p>其他使用者下載您的 ZIP 檔並解壓縮後，點選執行 <code>Studio0808_VoxCPM.exe</code>，然後到「系統設定」點選一鍵下載模型，即可全自動下載 4.3 GB 的模型權重並正常運行。這是目前最乾淨、最高效的 AI 軟體分發工作流。</p>
+                        </div>
+                    </div>
+                </div>
             </div>
         </section>
 
