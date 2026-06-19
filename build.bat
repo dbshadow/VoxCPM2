@@ -1,5 +1,5 @@
 @echo off
-chcp 950 >nul
+chcp 65001 >nul
 echo ==================================================
 echo   Studio0808 VoxCPM 語音合成工作站 (V20260619)
 echo   PyInstaller 一鍵打包腳本 (方案 A - 排除模型檔)
