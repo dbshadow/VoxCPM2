@@ -583,6 +583,7 @@
             <li class="nav-title">快速指引</li>
             <li class="nav-item active"><a href="#quick-start">🚀 快速入門與下載</a></li>
             <li class="nav-item"><a href="#dist-pkg">📦 打包體積與分發</a></li>
+            <li class="nav-item"><a href="#mac-support">🍎 macOS 支援說明</a></li>
             <li class="nav-title">核心功能</li>
             <li class="nav-item"><a href="#voice-record">🎤 即時錄音</a></li>
             <li class="nav-item"><a href="#voice-design">✨ 語音設計</a></li>
@@ -706,6 +707,26 @@
                         </div>
                     </div>
                 </div>
+            </div>
+        </section>
+
+        <!-- 🍎 macOS Support -->
+        <section id="mac-support">
+            <h2>🍎 macOS 支援與待開發說明</h2>
+            <p><strong>說明</strong>：許多網友詢問是否能在 Mac（特別是 Apple M1/M2/M3 系列晶片）上運行。原生的 OpenBMB/VoxCPM 開源底層在技術上已具備 Mac 的執行支援，但目前本工作站軟體（Studio0808）為 Windows 專用的免安裝封裝版本。未來如有足夠需求，將規劃推出獨立的 macOS 版本。</p>
+            
+            <div class="callout tip" style="background-color: rgba(33, 150, 243, 0.05); border-left-color: var(--accent-blue);">
+                <div class="callout-title" style="color: var(--text-main);">🔍 原生 VoxCPM2 的 Mac 支援細節</div>
+                <ul style="margin: 10px 0 10px 20px; color: var(--text-muted); font-size: 14px;">
+                    <li style="margin-bottom: 8px;"><strong>硬體加速 (MPS) 支援</strong>：原生代碼支援 Apple Silicon 的 <code>MPS</code> (Metal Performance Shaders) 硬體加速，會自動調用 Mac 的 GPU。同時，為了防止 M 晶片在 <code>float16</code> 精度下產生音訊雜音，程式會自動將模型提升至 <code>float32</code> 精度載入。</li>
+                    <li style="margin-bottom: 8px;"><strong>Mac 上運行的限制</strong>：Mac 上不支援 <code>torch.compile</code> 優化（必須關閉）；同時因改用 <code>float32</code> 載入模型，其主記憶體（統一記憶體）佔用會翻倍（約需 8.5 GB 以上）。因此強烈建議配備 <strong>16GB 以上記憶體</strong> 的 Mac 電腦運行，8GB 版本極易發生記憶體不足。</li>
+                    <li style="margin-bottom: 8px;"><strong>依賴安裝與環境要求</strong>：Mac 用戶若要在原生環境下透過原始碼運行，需要自行安裝 Python 環境，並使用 Homebrew 安裝音訊處理工具 <code>brew install ffmpeg</code>，最後透過指令 <code>python Studio0808_VoxCPM.py</code> 啟動。</li>
+                </ul>
+            </div>
+            
+            <div class="callout warning" style="background-color: rgba(233, 30, 99, 0.05); border-left-color: var(--accent-pink);">
+                <div class="callout-title" style="color: var(--text-main);">⚠️ macOS 版本待開發事項</div>
+                目前的 Windows 一鍵封裝版（ZIP檔內的 .exe 與依賴庫）是無法直接在 macOS 下執行的。後續若開發 MAC 版本，預計需要重新配置 PyInstaller，排除 Windows 專用的 CUDA 加速 DLL 檔案，並在 Mac 本機環境上重新打包產生 macOS 專屬的 <code>.app</code> 軟體格式。
             </div>
         </section>
 

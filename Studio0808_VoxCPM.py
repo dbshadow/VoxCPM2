@@ -110,7 +110,7 @@ class App(ctk.CTk):
             self.resource_dir = os.path.dirname(os.path.abspath(__file__))
 
         # Configure window
-        self.title("Studio0808 語音合成工作站 (V20260619)")
+        self.title("Studio0808 VoxCPM 語音合成工具站 (V20260619)")
         self.geometry("1100x750")
         self.minsize(950, 680)
         
@@ -155,6 +155,7 @@ class App(ctk.CTk):
         # Variables
         self.model_dir_var = ctk.StringVar(value=os.path.join(self.script_dir, "models", "VoxCPM2"))
         self.output_dir_var = ctk.StringVar(value=os.path.join(self.script_dir, "outputs"))
+        self.device_var = ctk.StringVar(value="Auto (自動偵測)")
         self.downloader_source_var = ctk.StringVar(value="Hugging Face 官方 (推薦)")
         self.download_cancelled_event = threading.Event()
         self.is_downloading = False
@@ -365,7 +366,7 @@ class App(ctk.CTk):
         title_row = ctk.CTkFrame(view_home, fg_color="transparent")
         title_row.pack(fill="x", pady=(0, 5))
         
-        lbl_title = ctk.CTkLabel(title_row, text="歡迎使用 Studio0808 語音合成工作站", font=self.font_title, anchor="w")
+        lbl_title = ctk.CTkLabel(title_row, text="Studio0808 VoxCPM 語音合成工具站", font=self.font_title, anchor="w")
         lbl_title.pack(side="left")
         
         # Standard container (No scrollbar, spacing reduced)
@@ -651,6 +652,21 @@ class App(ctk.CTk):
         self.entry_output_dir = ctk.CTkEntry(row_out_path, textvariable=self.output_dir_var, font=self.font_ui, fg_color="#181A1F")
         self.entry_output_dir.pack(side="left", fill="x", expand=True, padx=5)
         ctk.CTkButton(row_out_path, text="選擇資料夾...", font=self.font_ui, width=120, command=self.browse_output_dir).pack(side="left")
+
+        # Running Device setting
+        row_device = ctk.CTkFrame(view_settings, fg_color="transparent")
+        row_device.pack(fill="x", pady=8)
+        ctk.CTkLabel(row_device, text="模型執行裝置:", font=self.font_bold, width=150, anchor="w").pack(side="left")
+        self.menu_device = ctk.CTkOptionMenu(
+            row_device,
+            variable=self.device_var,
+            values=["Auto (自動偵測)", "CUDA (NVIDIA 顯示卡)", "CPU (純處理器)"],
+            font=self.font_ui,
+            dropdown_font=self.font_ui,
+            width=220
+        )
+        self.menu_device.pack(side="left", padx=5)
+        ctk.CTkLabel(row_device, text="💡 說明：顯示卡記憶體(VRAM)小於 4GB 建議改選 CPU 模式以防載入崩潰", font=self.font_ui, text_color="gray").pack(side="left", padx=10)
 
         # Separator line
         ctk.CTkFrame(view_settings, height=2, fg_color="#2A2D35").pack(fill="x", pady=15)
@@ -1165,11 +1181,52 @@ class App(ctk.CTk):
         batch_start = time.time()
         
         try:
+            # Determine target device
+            device_choice = self.device_var.get()
+            if "CUDA" in device_choice:
+                device_val = "cuda"
+            elif "CPU" in device_choice:
+                device_val = "cpu"
+            else:
+                device_val = "auto"
+
+            # Check if reload is needed due to device change
+            need_reload = False
+            if VOXCPM_MODEL is not None:
+                current_device = str(VOXCPM_MODEL.tts_model.device).lower()
+                from voxcpm.model.utils import resolve_runtime_device
+                try:
+                    target_device = resolve_runtime_device(device_val).lower()
+                except Exception:
+                    target_device = "cpu"
+                if target_device not in current_device and current_device not in target_device:
+                    if not (current_device.startswith("cuda") and target_device.startswith("cuda")):
+                        need_reload = True
+                        self.logger.log(f"🔄 偵測到執行裝置已變更，將重新載入模型為 {device_choice}...")
+                        import gc
+                        import torch
+                        VOXCPM_MODEL = None
+                        if torch.cuda.is_available():
+                            torch.cuda.empty_cache()
+                        gc.collect()
+
             # Lazy load model if not loaded
             if VOXCPM_MODEL is None:
-                self.logger.log("🔄 正在初次初始化並載入 VoxCPM2 模型... (模型大小為 2B，第一次載入可能需要 20-40 秒)")
+                self.logger.log(f"🔄 正在載入並初始化 VoxCPM2 模型... (裝置: {device_choice})")
                 from voxcpm import VoxCPM
-                VOXCPM_MODEL = VoxCPM.from_pretrained(model_dir, load_denoiser=False, optimize=not getattr(sys, 'frozen', False))
+                should_optimize = not getattr(sys, 'frozen', False)
+                if device_val == "cpu":
+                    should_optimize = False
+                elif device_val == "auto":
+                    import torch
+                    if not torch.cuda.is_available():
+                        should_optimize = False
+                VOXCPM_MODEL = VoxCPM.from_pretrained(
+                    model_dir,
+                    load_denoiser=False,
+                    optimize=should_optimize,
+                    device=device_val
+                )
                 self.logger.log("✅ 模型成功加載至記憶體/顯示記憶體！")
             
             for i, line in enumerate(lines, 1):
@@ -1215,7 +1272,13 @@ class App(ctk.CTk):
                     success_count += 1
                     
                 except Exception as e:
-                    self.logger.log(f"❌ 第 {i} 句生成失敗: {e}")
+                    err_msg = str(e)
+                    self.logger.log(f"❌ 第 {i} 句生成失敗: {err_msg}")
+                    if "1455" in err_msg or "分頁檔太小" in err_msg or (isinstance(e, OSError) and getattr(e, 'winerror', None) == 1455):
+                        self.logger.log("⚠️ 偵測到 Windows 虛擬記憶體（分頁檔）不足錯誤！")
+                        self.logger.log("📢 解決方案建議：")
+                        self.logger.log("  1. 請先加大 Windows 虛擬記憶體分頁檔（設定為固定 16GB 或 32GB）。")
+                        self.logger.log("  2. 在「系統設定」分頁中，手動將「模型執行裝置」改為「CPU (純處理器)」。")
                     fail_count += 1
             
             # Enable play buttons (last generated audio)
@@ -1232,21 +1295,74 @@ class App(ctk.CTk):
             self.after(0, lambda: messagebox.showinfo("批次合成完成 🎉", summary))
             
         except Exception as e:
-            self.logger.log(f"❌ 批次合成發生嚴重錯誤: {e}")
-            import traceback
-            tb_str = traceback.format_exc()
-            self.logger.log(f"詳細追蹤:\n{tb_str}")
+            self._handle_inference_error(e, prefix="批次合成發生嚴重錯誤")
         finally:
             self.after(0, self._stop_progress_bar)
+
+    def _handle_inference_error(self, e, prefix="生成失敗"):
+        err_msg = str(e)
+        self.logger.log(f"❌ {prefix}，錯誤資訊: {err_msg}")
+        
+        # Check for Windows virtual memory (pagefile) errors: os error 1455
+        if "1455" in err_msg or "分頁檔太小" in err_msg or (isinstance(e, OSError) and getattr(e, 'winerror', None) == 1455):
+            self.logger.log("⚠️ 偵測到 Windows 虛擬記憶體（分頁檔）不足錯誤！")
+            self.logger.log("📢 解決方案建議：")
+            self.logger.log("  1. 請先加大 Windows 虛擬記憶體分頁檔（設定為固定 16GB 或 32GB）。")
+            self.logger.log("  2. 在「系統設定」分頁中，手動將「模型執行裝置」改為「CPU (純處理器)」。")
+            
+        import traceback
+        tb_str = traceback.format_exc()
+        self.logger.log(f"詳細追蹤:\n{tb_str}")
 
     def _infer_thread_run(self, model_dir, args, speed_rate):
         global VOXCPM_MODEL
         try:
+            # Determine target device
+            device_choice = self.device_var.get()
+            if "CUDA" in device_choice:
+                device_val = "cuda"
+            elif "CPU" in device_choice:
+                device_val = "cpu"
+            else:
+                device_val = "auto"
+
+            # Check if reload is needed due to device change
+            need_reload = False
+            if VOXCPM_MODEL is not None:
+                current_device = str(VOXCPM_MODEL.tts_model.device).lower()
+                from voxcpm.model.utils import resolve_runtime_device
+                try:
+                    target_device = resolve_runtime_device(device_val).lower()
+                except Exception:
+                    target_device = "cpu"
+                if target_device not in current_device and current_device not in target_device:
+                    if not (current_device.startswith("cuda") and target_device.startswith("cuda")):
+                        need_reload = True
+                        self.logger.log(f"🔄 偵測到執行裝置已變更，將重新載入模型為 {device_choice}...")
+                        import gc
+                        import torch
+                        VOXCPM_MODEL = None
+                        if torch.cuda.is_available():
+                            torch.cuda.empty_cache()
+                        gc.collect()
+
             # Lazy load model if not loaded
             if VOXCPM_MODEL is None:
-                self.logger.log("🔄 正在初次初始化並載入 VoxCPM2 模型... (模型大小為 2B，第一次載入可能需要 20-40 秒)")
+                self.logger.log(f"🔄 正在載入並初始化 VoxCPM2 模型... (裝置: {device_choice})")
                 from voxcpm import VoxCPM
-                VOXCPM_MODEL = VoxCPM.from_pretrained(model_dir, load_denoiser=False, optimize=not getattr(sys, 'frozen', False))
+                should_optimize = not getattr(sys, 'frozen', False)
+                if device_val == "cpu":
+                    should_optimize = False
+                elif device_val == "auto":
+                    import torch
+                    if not torch.cuda.is_available():
+                        should_optimize = False
+                VOXCPM_MODEL = VoxCPM.from_pretrained(
+                    model_dir,
+                    load_denoiser=False,
+                    optimize=should_optimize,
+                    device=device_val
+                )
                 self.logger.log("✅ 模型成功加載至記憶體/顯示記憶體！")
 
             self.logger.log("🚀 開始生成語音...")
@@ -1292,10 +1408,7 @@ class App(ctk.CTk):
             self.after(0, lambda: messagebox.showinfo("語音生成完成 🎉", f"語音合成成功！耗時: {elapsed} 秒\n\n儲存路徑:\n{filepath}"))
             
         except Exception as e:
-            self.logger.log(f"❌ 生成失敗，錯誤資訊: {e}")
-            import traceback
-            tb_str = traceback.format_exc()
-            self.logger.log(f"詳細追蹤:\n{tb_str}")
+            self._handle_inference_error(e, prefix="生成失敗")
         finally:
             self.after(0, self._stop_progress_bar)
 
