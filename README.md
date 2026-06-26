@@ -1,93 +1,99 @@
-# 🎙️ Studio0808 VoxCPM 語音合成工作站
+**English** | [繁體中文](README.zh-TW.md)
+
+# 🎙️ Studio0808 VoxCPM — AI Text-to-Speech Workstation
 
 ![GitHub License](https://img.shields.io/badge/license-Apache%202.0-blue.svg)
 ![Python Version](https://img.shields.io/badge/python-3.8%2B-blue.svg)
 ![Platform](https://img.shields.io/badge/platform-windows-lightgrey.svg)
 
-本專案是基於 OpenBMB 最新開源的 20 億參數語音合成大模型 **VoxCPM2** 所開發的離線桌面 GUI 應用程式。整合了語音設計、聲音複製、極限複製，並配有現場即時錄音測試功能，讓使用者無需撰寫程式碼即可在 Windows 電腦上體驗高品質的 AI 語音生成。
+An offline desktop GUI application built on top of OpenBMB's state-of-the-art **VoxCPM2** — a 2-billion-parameter open-source text-to-speech large language model. It bundles voice design, voice cloning, ultimate cloning, and a built-in live recording studio into one tool, so you can experience high-quality AI speech synthesis on your Windows PC without writing a single line of code.
 
 ---
 
-## 🌟 主要特色與核心功能
+## 🌟 Key Features
 
-### 1. 🎤 即時錄音測試 (Live Voice Recording) (NEW!)
-* **麥克風動態選取**：動態偵測並列出系統中所有可用的音訊輸入設備。
-* **即時音波波形**：內建音量波形視覺化，錄音時可在畫面上即時看到粉紅波紋跳動，確保聲音正常錄入。
-* **一鍵套用**：錄音完後，可點選按鈕直接將該 WAV 音檔與對應的逐字稿套用至「聲音複製」或「極限複製」分頁中。
+### 1. 🎤 Live Voice Recording (NEW!)
+* **Dynamic Microphone Selection** — Automatically detects and lists every available audio input device on your system.
+* **Real-Time Waveform Visualization** — A built-in waveform monitor shows pink ripple animations while recording, giving you instant visual confirmation that audio is being captured.
+* **One-Click Apply** — After recording, apply the WAV file and its transcript directly to the Voice Clone or Ultimate Clone tab with a single click.
 
-### 2. ✨ 語音設計 (Voice Design)
-* **無中生有**：無需任何參考音檔，直接在輸入文字開頭加上括號並輸入英文特徵描述（如 `(A gentle young female voice, smiling)`），即可創造出完全符合描述的獨特人聲。
-* **快速預設面板**：內建台灣國語、日語、英語、韓語等十餘種精美預設音色範本，點擊即可快速套用。
-* **📋 批次合成 (有聲書神器)**：可將長文章或小說分行輸入（一行一句），系統會自動在背景逐句合成為單獨的音檔，防止記憶體溢出或大模型長上下文崩潰。
+### 2. ✨ Voice Design
+* **Create from Scratch** — No reference audio needed. Simply prepend a parenthesized English description to your text (e.g., `(A gentle young female voice, smiling)`) and the model will generate a unique voice that matches your description.
+* **Quick Preset Panel** — Choose from 10+ curated voice presets covering Mandarin, Japanese, English, Korean, and more — one click to apply.
+* **📋 Batch Synthesis (Audiobook Mode)** — Paste a long article or novel line-by-line (one sentence per line) and the system synthesizes each line into a separate audio file in the background, preventing memory overflow or context-length crashes.
 
-### 3. 👥 聲音複製 (Voice Clone)
-* **極短參考音**：僅需 3~10 秒乾淨的人聲錄音，即可快速模仿該發音人的音色特徵。
-* **隨機 Take 生成**：預設不固定隨機種子，每次生成音色不變，但說話的語氣、停頓與停頓間隔皆有不同，方便您挑選最生動的版本。
+### 3. 👥 Voice Clone
+* **Ultra-Short Reference Audio** — Only 3–10 seconds of clean vocal recording is needed to quickly replicate a speaker's tonal characteristics.
+* **Randomized Takes** — The random seed is deliberately left unfixed by default: the timbre stays consistent, but the pacing, pauses, and intonation vary with every generation, letting you cherry-pick the most natural-sounding take.
 
-### 4. 👑 極限複製 (Ultimate Clone)
-* **無縫接續**：同時提供參考音檔與該音檔的**對應逐字稿**。模型會將這段語音作為時間線的前文，百分之百無縫延續說出您的目標文字，完美繼承發音人原本的呼吸、語調起伏、環境雜音與情感。
-
----
-
-## ⚙️ 系統需求與建議
-
-* **作業系統**：Windows 10/11 (64-bit)
-* **Python 版本**：Python 3.8 ~ 3.11 
-* **硬體建議**：
-  * 模型參數量為 2B (約 20 億參數)，主模型權重大小約 4.63 GB。
-  * 建議配備有 **NVIDIA 顯示卡 (VRAM 建議 >= 6GB)** 並安裝 CUDA 環境以啟用 GPU 加速，可達到秒級生成的極速體驗。
-  * 若無 GPU，程式會自動切換為 CPU 模式運行（生成速度會慢約數十倍）。
+### 4. 👑 Ultimate Clone
+* **Seamless Continuation** — Supply both a reference audio clip and its exact transcript. The model treats the reference as a timeline prefix and seamlessly continues speaking your target text, perfectly inheriting the speaker's breathing, pitch contour, ambient noise, and emotion.
 
 ---
 
-## 🚀 快速安裝與啟動
+## ⚙️ System Requirements
 
-### 1. 克隆本專案
+| Item | Recommendation |
+|---|---|
+| **OS** | Windows 10 / 11 (64-bit) |
+| **Python** | 3.8 – 3.11 |
+| **GPU** | NVIDIA GPU with **≥ 6 GB VRAM** + CUDA for near-instant generation |
+| **Model Size** | ~2 B parameters; weights ≈ 4.63 GB on disk |
+
+> [!NOTE]
+> If no GPU is available, the application falls back to CPU mode automatically (expect ~10–30× slower generation).
+
+---
+
+## 🚀 Quick Start
+
+### 1. Clone the Repository
 ```bash
-git clone https://github.com/您的帳號/Studio0808_VoxCPM.git
-cd Studio0808_VoxCPM
+git clone https://github.com/begin0808/VoxCPM2.git
+cd VoxCPM2
 ```
 
-### 2. 安裝依賴套件
-強烈建議使用 Anaconda 或 venv 建立乾淨的虛擬環境。
+### 2. Install Dependencies
+A clean virtual environment (Anaconda or `venv`) is strongly recommended.
 ```bash
 pip install -r requirements.txt
 ```
 
-### 3. 啟動程式
+### 3. Launch
 ```bash
 python Studio0808_VoxCPM.py
 ```
 
 ---
 
-## 📂 模型部署說明 (第一次使用)
+## 📂 Model Deployment (First Run)
 
-本工作站為**全離線運行**，不會將任何語音或文字上傳至雲端。
-1. 開啟程式後，切換至 **「系統設定」** 分頁。
-2. 選擇下載伺服器來源：
-   * **Hugging Face 官方**（海外或台灣地區推薦，頻寬最高）
-   * **ModelScope / 鏡像站**（中國大陸地區推薦）
-3. 點選 **「開始下載 / 檢查模型」**。
-4. 下載程式支援** Range 斷點續傳與自動重試機制**，如中途網路不穩，再次點擊即可在原進度續傳，下載完成後程式便能完全離線運作。
+This workstation is **fully offline** — no audio or text is ever uploaded to the cloud.
 
----
-
-## ❓ 實戰微調技巧 (FAQ)
-
-### Q：合成時，字唸錯了（例如多音字、生僻字唸錯）怎麼辦？
-* **同音字替換**：因為輸入的目標文字僅用於 AI 合成語音，聽眾只會聽到聲音、看不到文字。
-* **實例**：
-  * 模型若將「連**假**」讀成三聲的「連甲」，可將文字修改為 **「連架」** 或 **「連價」** 即可強行唸出四聲。
-  * 若生僻字「狂**飆**」唸錯，可將其改為同音常見字 **「狂標」** 即可。
-
-### Q：語音複製的最佳錄音長度是多久？
-* **3~10 秒為黃金長度**：錄音時間並非越長越好。過長的參考語音（例如超過 30 秒）會大幅占用自迴歸模型的注意力窗口，反而容易導致生成後半段文字時出現跳針、胡言亂語或提早中斷等問題。請優先使用 5~8 秒、乾淨無背景音樂且說話清晰的短語音。
+1. Open the app and navigate to the **System Settings** tab.
+2. Select a download mirror:
+   * **Hugging Face** (recommended for most regions — highest bandwidth)
+   * **ModelScope / Mirror** (recommended for users in mainland China)
+3. Click **"Start Download / Check Model"**.
+4. The downloader supports **HTTP Range requests (resume)** and **auto-retry**. If the connection drops, simply click again to resume from where it left off. Once downloaded, the app can run entirely offline.
 
 ---
 
-## 📜 聲明與授權
+## ❓ Tips & FAQ
 
-* 本專案底層採用 OpenBMB 開源之 [VoxCPM2](https://github.com/OpenBMB/VoxCPM) 模型，該模型依 **Apache License 2.0** 協議授權。
-* 本工具僅供學術研究、測試與技術評估之用，請遵守相關法律法規，切勿將合成的語音用於非法或未授權之傳播。
-* 版權所有 © 2026 Studio0808.
+### Q: The model mispronounces certain characters (e.g., polyphonic or rare characters)?
+* **Homophone Substitution** — Since the input text is only used to drive speech synthesis (listeners hear the audio, not the text), you can freely swap in a homophone that the model reads correctly.
+* **Example:**
+  * If the model reads 連**假** with the wrong tone, replace it with a homophone like **連架** or **連價**.
+  * If the rare character 狂**飆** is mispronounced, swap it for a common homophone like **狂標**.
+
+### Q: What is the ideal reference audio length for voice cloning?
+* **3–10 seconds is the sweet spot.** Longer reference audio (e.g., > 30 seconds) consumes a disproportionate share of the autoregressive model's attention window, often causing repetition loops, hallucinations, or premature cutoffs in the generated output. Aim for 5–8 seconds of clean, background-music-free speech.
+
+---
+
+## 📜 License & Disclaimer
+
+* This project is built on top of OpenBMB's open-source [VoxCPM2](https://github.com/OpenBMB/VoxCPM) model, released under the **Apache License 2.0**.
+* This tool is intended for **academic research, testing, and technical evaluation only**. Please comply with all applicable laws and regulations — do not use synthesized speech for illegal or unauthorized purposes.
+* Copyright © 2026 Studio0808.
