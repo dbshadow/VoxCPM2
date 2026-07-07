@@ -79,6 +79,64 @@ This workstation is **fully offline** — no audio or text is ever uploaded to t
 
 ---
 
+## 🖥️ Client-Server (Web API) Deployment Guide (NEW!)
+
+To bypass local hardware constraints, you can now run VoxCPM2 in a **client-server architecture**. Run the GPU-intensive inference backend on a remote NVIDIA GPU server, and control it from a beautiful web dashboard deployed on the public internet.
+
+### 1. 🚀 Backend Deployment (GPU Server)
+The backend is written in FastAPI. Docker is highly recommended for easy setup.
+
+#### Option A: Docker Compose (Recommended)
+1. Ensure your server has `docker`, `docker-compose`, and the `nvidia-container-toolkit` installed.
+2. Navigate to the backend directory:
+   ```bash
+   cd backend
+   ```
+3. Set your authorization key in `docker-compose.yml` (using `VOXCPM_API_KEY`) to secure your GPU compute resources.
+4. Launch the container:
+   ```bash
+   docker compose up -d --build
+   ```
+5. The API backend will be live at `http://<YOUR_SERVER_IP>:8000`.
+
+#### Option B: Bare-metal Setup
+1. Install backend dependencies:
+   ```bash
+   pip install -r backend/requirements.txt
+   ```
+2. Start the Uvicorn server:
+   ```bash
+   python -m uvicorn backend.main:app --host 0.0.0.0 --port 8000
+   ```
+
+---
+
+### 2. 🌐 Frontend Deployment (Public Web)
+The frontend is built with Vite, React, and Tailwind CSS.
+
+1. Navigate to the frontend directory:
+   ```bash
+   cd frontend
+   ```
+2. Install packages and build static files:
+   ```bash
+   npm install
+   npm run build
+   ```
+3. Deploy the compiled `dist/` directory to any static host (e.g. Vercel, Netlify, Github Pages, Cloudflare Pages).
+4. **Configuration**:
+   - Open your hosted website, go to the **System Settings** tab.
+   - Enter your backend API URL (e.g., `http://<GPU_IP>:8000`) and the API key (if configured). These settings are securely persisted in your browser's local storage.
+
+> [!IMPORTANT]
+> **Mixed Content Blocks (HTTPS vs HTTP)**:
+> Since web hosts like Vercel force **HTTPS**, requests to a non-HTTPS GPU backend (e.g. `http://<IP>:8000`) will be blocked by browsers.
+> **Fixes**:
+> 1. Set up Nginx as a reverse proxy on your GPU server with Let's Encrypt SSL.
+> 2. Or, use **Cloudflare Tunnels** (`cloudflared`) to map your local port 8000 securely. Cloudflare automatically issues free SSL certificates and handles traffic routing for you without open ports.
+
+---
+
 ## ❓ Tips & FAQ
 
 ### Q: The model mispronounces certain characters (e.g., polyphonic or rare characters)?

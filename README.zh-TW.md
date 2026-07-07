@@ -75,6 +75,64 @@ python Studio0808_VoxCPM.py
 
 ---
 
+## 🖥️ 前後端分離 (Web API) 部署指引 (NEW!)
+
+為了降低本機硬體限制，本專案現已支援**前後端分離部署**：將耗費 GPU 資源的模型推理部署在遠端 NVIDIA GPU 伺服器，並透過任何公開網路上的 Web 瀏覽器進行操作。
+
+### 1. 🚀 後端部署 (配備 GPU 伺服器)
+後端基於 FastAPI 框架，建議使用 **Docker** 進行一鍵部署。
+
+#### 方式 A：使用 Docker Compose (推薦)
+1. 確保伺服器已安裝 `docker`、`docker-compose` 與 `nvidia-container-toolkit`。
+2. 切換至後端目錄：
+   ```bash
+   cd backend
+   ```
+3. 在 `docker-compose.yml` 中根據需求修改環境變數（如 `VOXCPM_API_KEY` 金鑰以保護您的 GPU 運算資源）。
+4. 啟動容器：
+   ```bash
+   docker compose up -d --build
+   ```
+5. 後端服務將啟動於 `http://<您的伺服器IP>:8000`。
+
+#### 方式 B：手動啟動 (Python 虛擬環境)
+1. 安裝後端專屬依賴：
+   ```bash
+   pip install -r backend/requirements.txt
+   ```
+2. 啟動 Uvicorn 服務：
+   ```bash
+   python -m uvicorn backend.main:app --host 0.0.0.0 --port 8000
+   ```
+
+---
+
+### 2. 🌐 前端部署 (公開網路)
+前端基於 Vite + React + Tailwind CSS。
+
+1. 切換至前端目錄：
+   ```bash
+   cd frontend
+   ```
+2. 安裝依賴並編譯為靜態 HTML/JS 檔案：
+   ```bash
+   npm install
+   npm run build
+   ```
+3. 將產生的 `dist/` 資料夾部署至任何靜態託管平台（如 Vercel, Netlify, Github Pages, Cloudflare Pages 等）。
+4. **設定與連線**：
+   - 開啟網頁後，進入 **「系統設定」** 分頁。
+   - 輸入您的後端 API 位址（如 `http://<GPU_IP>:8000`）與 API-Key（如有配置）。設定會自動儲存於瀏覽器本地 `localStorage` 中。
+
+> [!IMPORTANT]
+> **Mixed Content (HTTPS 與 HTTP 混合安全性問題)**：
+> 如果您的前端部署在 Vercel 等平台且走 **HTTPS** 安全協議，而您的 GPU 後端只走 **HTTP**，瀏覽器會安全起見阻擋請求。
+> **解決方案**：
+> 1. 在 GPU 後端伺服器上安裝 Nginx 並配置 SSL 憑證；或
+> 2. 使用 **Cloudflare Tunnels** (`cloudflared`) 將後端 8000 連接埠安全暴露，這會自動提供免費的 HTTPS 域名，最為推薦。
+
+---
+
 ## ❓ 實戰微調技巧 (FAQ)
 
 ### Q：合成時，字唸錯了（例如多音字、生僻字唸錯）怎麼辦？

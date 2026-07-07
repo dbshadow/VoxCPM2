@@ -1,0 +1,11 @@
+fastapi
+uvicorn
+python-multipart
+soundfile
+numpy<2.0.0
+torch>=2.5.0
+torchaudio>=2.5.0
+huggingface-hub>=0.23.0
+voxcpm
+modelscope
+librosa

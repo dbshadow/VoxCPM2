@@ -1,0 +1,29 @@
+version: '3.8'
+
+services:
+  voxcpm-backend:
+    build:
+      context: ..
+      dockerfile: backend/Dockerfile
+    container_name: voxcpm-backend
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    environment:
+      # Set your API key here (leave empty to disable authorization)
+      - VOXCPM_API_KEY=
+      - VOXCPM_MODEL_DIR=/app/models/VoxCPM2
+      - VOXCPM_OUTPUT_DIR=/app/outputs
+      - ALLOWED_ORIGINS=*
+    volumes:
+      # Mount local models directory to persist model downloads
+      - ../models:/app/models
+      # Mount outputs directory to access generated audio files
+      - ../outputs:/app/outputs
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]

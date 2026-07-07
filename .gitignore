@@ -10,3 +10,5 @@ outputs/
 .idea/
 build/
 dist/
+.agent/
+.gemini/
